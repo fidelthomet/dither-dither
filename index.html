@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dithering</title>
+  <script type="module" src="/src/main.js"></script>
+</head>
+
+<body>
+  <h1>dithering</h1>
+  <h2>image</h2>
+  <dither-dither src="./hermannstrasse.jpg"></dither-dither>
+  <h2>video</h2>
+  <dither-dither src="./hermannstrasse.mp4" video></dither-dither>
+  <h2>custom threshold map</h2>
+  <dither-dither src="./hermannstrasse.jpg" threshold-map="./bayer8x8.png"></dither-dither>
+
+</body>
+<style>
+</style>
+
+</html>
