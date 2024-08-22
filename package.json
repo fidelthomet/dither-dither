@@ -1,10 +1,14 @@
 {
   "name": "dither-dither",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "type": "module",
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fidelthomet/dither-dither"
+  },
   "main": "./dist/dither-dither.umd.cjs",
   "module": "./dist/dither-dither.js",
   "exports": {
