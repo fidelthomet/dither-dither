@@ -1,4 +1,6 @@
 // vite.config.build.js
 import { defineConfig } from "vite";
 
-export default defineConfig({});
+export default defineConfig({
+  base: "./",
+});
