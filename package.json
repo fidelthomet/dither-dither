@@ -18,7 +18,7 @@
     }
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --config vite.config.site.js",
     "build": "vite build",
     "build:site": "vite build --config vite.config.site.js",
     "preview": "vite preview"
