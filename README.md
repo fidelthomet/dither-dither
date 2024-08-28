@@ -49,6 +49,9 @@ use
 
 <!-- by default, if the webgl context is lost, an attempt is made to restore the context immediately if in current viewport or once it enters the viewport, set `restore` to `false` to disable this behaviour -->
 <dither-dither src="./hermannstrasse.jpg" restore="false"></dither-dither>
+
+<!-- by default, static images are frozen. I.e. the dithered image is saved and displayed as a static image and the webgl context is destroyed. to change that set freeze to false -->
+<dither-dither src="./hermannstrasse.jpg" freeze="false"></dither-dither>
 ```
 
 
