@@ -44,8 +44,11 @@ use
 <!-- cross origin, sets cross origing mode to `anonymous` see: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/crossOrigin -->
 <dither-dither cross-origin src="https://…"></dither-dither>
 
-<!-- to reduce the number of webgl contexts, by default a webgl context is only created once the element is in the viewport. to disable that behaviour set the `immediate` attribute -->
+<!-- by default a webgl context is only created once the element is in the viewport. to disable that behaviour set the `immediate` attribute -->
 <dither-dither src="./hermannstrasse.jpg" immediate></dither-dither>
+
+<!-- by default, if the webgl context is lost, an attempt is made to restore the context immediately if in current viewport or once it enters the viewport, set `restore` to `false` to disable this behaviour -->
+<dither-dither src="./hermannstrasse.jpg" restore="false"></dither-dither>
 ```
 
 

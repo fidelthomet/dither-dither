@@ -14,6 +14,10 @@ class DitherDither extends HTMLElement {
     this.observer = null;
     this.width = 0;
     this.height = 0;
+    this.restore = true;
+    this.intersecting = false;
+    this.lastRestore = 0;
+    this.id = crypto.randomUUID().split("-")[0];
   }
   static observedAttributes = ["src", "thresholdSrc"];
   async attributeChangedCallback(name, oldValue, newValue) {
@@ -30,14 +34,6 @@ class DitherDither extends HTMLElement {
         await this.initThreshold();
         this.initGL();
         break;
-      // case "lazy":
-      //   if (newValue != null && newValue !== false) {
-      //     this.initObserver();
-      //   } else {
-      //     this.destroyObserver();
-      //   }
-      //   this.initGL();
-      //   break;
       default:
         break;
     }
@@ -47,21 +43,20 @@ class DitherDither extends HTMLElement {
     this.crossOrigin = this.getAttribute("cross-origin");
     this.mediaSrc = this.getAttribute("src");
     this.immediate = this.getAttribute("immediate");
+    this.restore = this.getAttribute("restore") !== "false";
 
     this.root = this.attachShadow({ mode: "closed" });
     this.initCanvas();
     await Promise.all([this.initMedia(), this.initThreshold()]);
     this.resizeCanvas();
 
+    this.initObserver();
     if (this.immediate) {
       this.initGL();
-    } else {
-      this.initObserver();
     }
   }
 
   initCanvas() {
-    // if (this.canvas) this.resetCanvas();
     this.canvas = document.createElement("canvas");
     this.canvas.style = "display: block; image-rendering: pixelated;";
     this.root.appendChild(this.canvas);
@@ -71,18 +66,16 @@ class DitherDither extends HTMLElement {
 
     this.resizeCanvas();
 
-    this.canvas.addEventListener("webglcontextlost", (e) => {
-      console.log("losing context");
-      e.preventDefault();
-    });
-    this.canvas.addEventListener("webglcontextrestored", (e) => {
-      console.log("attempting restore");
-    });
-  }
-  resetCanvas() {
-    if (this.canvas) {
-      this.canvas.remove();
-      this.initCanvas();
+    if (this.restore) {
+      this.canvas.addEventListener("webglcontextlost", (e) => {
+        e.preventDefault();
+        if (this.intersecting) {
+          this.restoreContext();
+        }
+      });
+      this.canvas.addEventListener("webglcontextrestored", (e) => {
+        if (this.gl.isContextLost()) this.restoreContext();
+      });
     }
   }
   loadMedia(url, isVideo) {
@@ -120,16 +113,22 @@ class DitherDither extends HTMLElement {
   async resizeCanvas() {
     this.canvas.width = this.width;
     this.canvas.height = this.height;
-    console.log(this.canvas.width, this.width, this.canvas.height, this.height);
+  }
+
+  restoreContext() {
+    if (!this.gl.isContextLost()) return;
+    const time = new Date().getTime();
+    if (this.lastRestore + 750 > time) return;
+    this.lastRestore = time;
+    this.removeCanvas();
+    this.initCanvas();
+    this.initGL();
+  }
+  removeCanvas() {
+    this.canvas.remove();
   }
   async initGL() {
-    // const root = this.attachShadow({ mode: "closed" });
-
     const gl = (this.gl = this.canvas.getContext("webgl"));
-
-    // this.gl?.getExtension("WEBGL_lose_context").restoreContext();
-
-    // console.log(this.canvas.getContext("webgl"));
 
     const program = createProgram(gl, vs, fs);
     gl.useProgram(program);
@@ -257,11 +256,16 @@ class DitherDither extends HTMLElement {
   }
 
   initObserver() {
+    if (this.immediate && !this.restore) return;
     this.observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
+        this.intersecting = entry.isIntersecting;
         if (entry.isIntersecting) {
           if (!this.immediate && !this.initialized) {
             this.initGL();
+          }
+          if (this.restore && this.gl.isContextLost()) {
+            this.restoreContext();
           }
         }
       });
