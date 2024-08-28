@@ -5,79 +5,131 @@ import thresholdMap from "./BlueNoise.png";
 class DitherDither extends HTMLElement {
   constructor() {
     super();
-    this.canvas = undefined;
-    this.media = undefined;
-    this.threshold = undefined;
-    this.initialized = undefined;
-    this.gl = undefined;
+    this.root = null;
+    this.canvas = null;
+    this.media = null;
+    this.threshold = null;
+    this.initialized = null;
+    this.gl = null;
+    this.observer = null;
+    this.width = 0;
+    this.height = 0;
   }
-  static observedAttributes = ["src", "type", "thresholdSrc"];
+  static observedAttributes = ["src", "thresholdSrc"];
   async attributeChangedCallback(name, oldValue, newValue) {
     if (!this.initialized) return;
     switch (name) {
       case "src":
-      case "type":
-      case "thresholdSrc":
-        this.init();
+        this.mediaSrc = newValue;
+        await this.initMedia();
+        this.resizeCanvas();
+        this.initGL();
         break;
-
+      case "thresholdSrc":
+        this.thresholdSrc = newValue;
+        await this.initThreshold();
+        this.initGL();
+        break;
+      // case "lazy":
+      //   if (newValue != null && newValue !== false) {
+      //     this.initObserver();
+      //   } else {
+      //     this.destroyObserver();
+      //   }
+      //   this.initGL();
+      //   break;
       default:
         break;
     }
   }
-  connectedCallback() {
-    const root = this.attachShadow({ mode: "closed" });
+
+  async connectedCallback() {
+    this.crossOrigin = this.getAttribute("cross-origin");
+    this.mediaSrc = this.getAttribute("src");
+    this.immediate = this.getAttribute("immediate");
+
+    this.root = this.attachShadow({ mode: "closed" });
+    this.initCanvas();
+    await Promise.all([this.initMedia(), this.initThreshold()]);
+    this.resizeCanvas();
+
+    if (this.immediate) {
+      this.initGL();
+    } else {
+      this.initObserver();
+    }
+  }
+
+  initCanvas() {
+    // if (this.canvas) this.resetCanvas();
     this.canvas = document.createElement("canvas");
     this.canvas.style = "display: block; image-rendering: pixelated;";
-    root.appendChild(this.canvas);
-    this.init();
-  }
-  async init() {
-    this.loadMedia = (url, crossOrigin, isVideo) => {
-      return new Promise((resolve) => {
-        const el = isVideo ? document.createElement("video") : new Image();
-        el.src = url;
-        el.crossOrigin = crossOrigin;
-        if (isVideo) {
-          el.playsInline = true;
-          el.muted = true;
-          el.loop = true;
-          el.play();
-          el.addEventListener("playing", () => resolve(el), { once: true });
-        } else {
-          el.addEventListener("load", () => resolve(el), { once: true });
-        }
-      });
-    };
+    this.root.appendChild(this.canvas);
 
-    const crossOrigin = this.getAttribute("cross-origin");
-    const mediaSrc = this.getAttribute("src");
-    const isVideo =
-      this.getAttribute("type") === "video" ||
-      (this.getAttribute("type") == null &&
-        ["mp4", "webm", "ogg"].includes(mediaSrc.match(/[^.]+$/)[0]));
-
-    const thresholdSrc = this.getAttribute("threshold-map") ?? thresholdMap;
-    // const root = this.attachShadow({ mode: "closed" });
-
-    const loadingMedia = this.loadMedia(mediaSrc, crossOrigin, isVideo);
-    const loadingThreshold = this.loadMedia(thresholdSrc, crossOrigin);
-
-    this.canvas.setAttribute("role", isVideo ? "video" : "image");
+    this.canvas.setAttribute("role", "img");
     this.canvas.setAttribute("aria-label", this.getAttribute("alt"));
 
-    await Promise.all([loadingMedia, loadingThreshold]).then((res) => {
-      this.media = res[0];
-      this.threshold = res[1];
+    this.resizeCanvas();
+
+    this.canvas.addEventListener("webglcontextlost", (e) => {
+      console.log("losing context");
+      e.preventDefault();
     });
+    this.canvas.addEventListener("webglcontextrestored", (e) => {
+      console.log("attempting restore");
+    });
+  }
+  resetCanvas() {
+    if (this.canvas) {
+      this.canvas.remove();
+      this.initCanvas();
+    }
+  }
+  loadMedia(url, isVideo) {
+    return new Promise((resolve) => {
+      const el = isVideo ? document.createElement("video") : new Image();
+      el.src = url;
+      el.crossOrigin = this.crossOrigin;
+      if (isVideo) {
+        el.playsInline = true;
+        el.muted = true;
+        el.loop = true;
+        el.play();
+        el.addEventListener("playing", () => resolve(el), { once: true });
+      } else {
+        el.addEventListener("load", () => resolve(el), { once: true });
+      }
+    });
+  }
+  isVideo() {
+    return (
+      this.getAttribute("type") === "video" ||
+      (this.getAttribute("type") == null &&
+        ["mp4", "webm", "ogg"].includes(this.mediaSrc.match(/[^.]+$/)[0]))
+    );
+  }
+  async initMedia() {
+    this.media = await this.loadMedia(this.mediaSrc, this.isVideo());
 
-    const width = this.media.videoWidth ?? this.media.width;
-    const height = this.media.videoHeight ?? this.media.height;
-
-    this.canvas.width = width;
-    this.canvas.height = height;
+    this.width = this.media.videoWidth ?? this.media.width;
+    this.height = this.media.videoHeight ?? this.media.height;
+  }
+  async initThreshold() {
+    this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
+  }
+  async resizeCanvas() {
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    console.log(this.canvas.width, this.width, this.canvas.height, this.height);
+  }
+  async initGL() {
+    // const root = this.attachShadow({ mode: "closed" });
 
     const gl = (this.gl = this.canvas.getContext("webgl"));
+
+    // this.gl?.getExtension("WEBGL_lose_context").restoreContext();
+
+    // console.log(this.canvas.getContext("webgl"));
 
     const program = createProgram(gl, vs, fs);
     gl.useProgram(program);
@@ -89,7 +141,20 @@ class DitherDither extends HTMLElement {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([0, 0, width, 0, 0, height, 0, height, width, 0, width, height]),
+      new Float32Array([
+        0,
+        0,
+        this.width,
+        0,
+        0,
+        this.height,
+        0,
+        this.height,
+        this.width,
+        0,
+        this.width,
+        this.height,
+      ]),
       gl.STATIC_DRAW
     );
 
@@ -167,7 +232,7 @@ class DitherDither extends HTMLElement {
     }
 
     this.render = () => {
-      if (isVideo) {
+      if (this.isVideo()) {
         updateTexture(gl, this.mediaTexture, this.media);
         requestAnimationFrame(this.render);
       }
@@ -186,14 +251,26 @@ class DitherDither extends HTMLElement {
       gl.bindTexture(gl.TEXTURE_2D, this.thresholdTexture);
 
       gl.drawArrays(gl.TRIANGLES, 0, 6);
-
-      if (!isVideo) {
-        // console.log("lose context");
-        // gl.getExtension("WEBGL_lose_context").loseContext();
-      }
     };
     this.render();
     this.initialized = true;
+  }
+
+  initObserver() {
+    this.observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          if (!this.immediate && !this.initialized) {
+            this.initGL();
+          }
+        }
+      });
+    });
+    this.observer.observe(this);
+  }
+
+  destroyObserver() {
+    if (this.observer?.unobserve) this.observer.unobserve(this);
   }
 }
 
