@@ -18,7 +18,7 @@ class DitherDither extends HTMLElement {
     this.intersecting = false;
     this.lastRestore = 0;
   }
-  static observedAttributes = ["src", "thresholdSrc"];
+  static observedAttributes = ["src", "threshold-map"];
   async attributeChangedCallback(name, oldValue, newValue) {
     if (!this.initialized) return;
     switch (name) {
@@ -31,7 +31,7 @@ class DitherDither extends HTMLElement {
         } else this.resizeCanvas();
         this.initGL();
         break;
-      case "thresholdSrc":
+      case "threshold-map":
         this.thresholdSrc = newValue;
         await this.initThreshold();
         this.img?.remove?.();
@@ -48,6 +48,7 @@ class DitherDither extends HTMLElement {
   async connectedCallback() {
     this.crossOrigin = this.getAttribute("cross-origin");
     this.mediaSrc = this.getAttribute("src");
+    this.thresholdSrc = this.getAttribute("threshold-map");
     this.immediate = this.getAttribute("immediate") != null;
     this.restore = this.getAttribute("restore") !== "false";
 
