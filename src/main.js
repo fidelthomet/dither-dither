@@ -123,9 +123,29 @@ class DitherDither extends HTMLElement {
     this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
   }
   async resizeCanvas() {
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : this.clientWidth;
+    const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : this.clientHeight;
+
+    const mediaAspectRatio = this.width / this.height;
+    const canvasAspectRatio = customWidth / customHeight;
+
+    let renderWidth, renderHeight;
+
+    if (mediaAspectRatio > canvasAspectRatio) {
+      renderWidth = customHeight * mediaAspectRatio;
+      renderHeight = customHeight;
+    } else {
+      renderWidth = customWidth;
+      renderHeight = customWidth / mediaAspectRatio;
+    }
+
+    this.canvas.width = customWidth;
+    this.canvas.height = customHeight;
+
+    this.renderWidth = renderWidth;
+    this.renderHeight = renderHeight;
   }
+
 
   restoreContext() {
     if (!this.gl.isContextLost()) return;
@@ -148,24 +168,21 @@ class DitherDither extends HTMLElement {
 
     const mediaTexture = createTexture(gl, this.media);
     const thresholdTexture = createTexture(gl, this.threshold);
-
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+    const xOffset = (this.renderWidth - this.canvas.width) / 2;
+    const yOffset = (this.renderHeight - this.canvas.height) / 2;
+
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
-        0,
-        0,
-        this.width,
-        0,
-        0,
-        this.height,
-        0,
-        this.height,
-        this.width,
-        0,
-        this.width,
-        this.height,
+        -xOffset, -yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        this.renderWidth - xOffset, this.renderHeight - yOffset
       ]),
       gl.STATIC_DRAW
     );
