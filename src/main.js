@@ -123,8 +123,9 @@ class DitherDither extends HTMLElement {
     this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
   }
   async resizeCanvas() {
-    const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : this.clientWidth;
-    const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : this.clientHeight;
+
+    const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : this.width;
+    const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : this.height;
 
     const mediaAspectRatio = this.width / this.height;
     const canvasAspectRatio = customWidth / customHeight;
@@ -145,6 +146,8 @@ class DitherDither extends HTMLElement {
     this.renderWidth = renderWidth;
     this.renderHeight = renderHeight;
   }
+
+
 
 
   restoreContext() {
