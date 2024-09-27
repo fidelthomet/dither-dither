@@ -4,7 +4,7 @@ uniform sampler2D image;
 uniform sampler2D threshold;
 
 uniform vec2 resolution;
-
+uniform vec3 customColor;
 varying vec2 v_texCoord;
 
 vec4 dither(vec2 position, vec4 color) {
@@ -14,8 +14,10 @@ vec4 dither(vec2 position, vec4 color) {
   vec4 limit = texture2D(threshold, uv);
 
   float dithered = brightness < limit.x ? 0.0 : 1.0;
-  return vec4(dithered, dithered, dithered, 1.0);
+  vec3 finalColor = mix(customColor, vec3(1.0), dithered);
+  return vec4(finalColor, 1.0);
 }
+
 
 void main() {
    vec4 color = texture2D(image, v_texCoord);
