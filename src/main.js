@@ -204,6 +204,7 @@ class DitherDither extends HTMLElement {
     const imageLocation = gl.getUniformLocation(program, "image");
     const thresholdLocation = gl.getUniformLocation(program, "threshold");
     const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
+    const customColorLocation = gl.getUniformLocation(program, "customColor");
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.useProgram(program);
@@ -215,6 +216,12 @@ class DitherDither extends HTMLElement {
 
     gl.uniform1i(imageLocation, 0);
     gl.uniform1i(thresholdLocation, 1);
+
+    const customColor = this.getAttribute('fill') ? parseColor(this.getAttribute('fill')) : [0.0, 0.0, 0.0];
+    
+    console.log(customColor)
+    
+    gl.uniform3fv(customColorLocation, customColor);
 
     function createShader(gl, type, source) {
       const shader = gl.createShader(type);
@@ -293,6 +300,7 @@ class DitherDither extends HTMLElement {
     this.initialized = true;
   }
 
+
   freezeCanvas() {
     this.canvas.toBlob((blob) => {
       this.img = document.createElement("img");
@@ -331,6 +339,24 @@ class DitherDither extends HTMLElement {
   destroyObserver() {
     if (this.observer?.unobserve) this.observer.unobserve(this);
   }
+}
+function parseColor(colorString) {
+  if (colorString.startsWith("#")) {
+    let hex = colorString.replace("#", "");
+    if (hex.length === 3) {
+      hex = hex.split("").map(c => c + c).join("");
+    }
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r / 255, g / 255, b / 255];
+  }
+
+  if (colorString.includes(",")) {
+    return colorString.split(",").map(Number);
+  }
+  return [0.0, 0.0, 0.0];
 }
 
 customElements.define("dither-dither", DitherDither);
