@@ -14,18 +14,25 @@
   <div>
     <img src="./hermannstrasse.jpg" />
     <dither-dither src="./hermannstrasse.jpg"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" width="1000" height="500"></dither-dither>
   </div>
   <h2>video</h2>
   <div>
     <video src="./hermannstrasse.mp4" muted autoplay loop></video>
     <dither-dither src="./hermannstrasse.mp4" video></dither-dither>
+    <dither-dither src="./hermannstrasse.mp4" width="1000" height="500" video></dither-dither>
+  </div>
+  <h2>Custom color</h2>
+  <div>
+    <dither-dither src="./hermannstrasse.jpg" fill="255,0,0"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" fill="#ff50b6"></dither-dither>
+    <dither-dither src="./hermannstrasse.mp4" fill="#b73873"></dither-dither>
   </div>
   <h2>custom threshold map</h2>
   <div>
     <img src="./hermannstrasse.jpg" />
     <dither-dither src="./hermannstrasse.jpg" threshold-map="./bayer8x8.png" lazy></dither-dither>
   </div>
-
 </body>
 <style>
   div {
