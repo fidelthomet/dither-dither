@@ -123,32 +123,51 @@ class DitherDither extends HTMLElement {
     this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
   }
   async resizeCanvas() {
-
-    const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : this.width;
-    const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : this.height;
+    const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : null;
+    const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : null;
+    const aspectRatioType = this.getAttribute('aspect-ratio') || 'contain';
 
     const mediaAspectRatio = this.width / this.height;
-    const canvasAspectRatio = customWidth / customHeight;
+    let canvasWidth, canvasHeight;
+
+    if (customWidth && customHeight) {
+      canvasWidth = customWidth;
+      canvasHeight = customHeight;
+    }
+    else if (customWidth) {
+      canvasWidth = customWidth;
+      canvasHeight = customWidth / mediaAspectRatio;
+    }
+    else if (customHeight) {
+      canvasHeight = customHeight;
+      canvasWidth = customHeight * mediaAspectRatio;
+    }
+    else {
+      canvasWidth = this.width;
+      canvasHeight = this.height;
+    }
 
     let renderWidth, renderHeight;
 
-    if (mediaAspectRatio > canvasAspectRatio) {
-      renderWidth = customHeight * mediaAspectRatio;
-      renderHeight = customHeight;
+    if (aspectRatioType === 'contain') {
+      const scale = Math.min(canvasWidth / this.width, canvasHeight / this.height);
+      renderWidth = this.width * scale;
+      renderHeight = this.height * scale;
+    } else if (aspectRatioType === 'cover') {
+      const scale = Math.max(canvasWidth / this.width, canvasHeight / this.height);
+      renderWidth = this.width * scale;
+      renderHeight = this.height * scale;
     } else {
-      renderWidth = customWidth;
-      renderHeight = customWidth / mediaAspectRatio;
+      renderWidth = canvasWidth;
+      renderHeight = canvasHeight;
     }
 
-    this.canvas.width = customWidth;
-    this.canvas.height = customHeight;
+    this.canvas.width = canvasWidth;
+    this.canvas.height = canvasHeight;
 
     this.renderWidth = renderWidth;
     this.renderHeight = renderHeight;
   }
-
-
-
 
   restoreContext() {
     if (!this.gl.isContextLost()) return;
@@ -218,9 +237,9 @@ class DitherDither extends HTMLElement {
     gl.uniform1i(thresholdLocation, 1);
 
     const customColor = this.getAttribute('fill') ? parseColor(this.getAttribute('fill')) : [0.0, 0.0, 0.0];
-    
+
     console.log(customColor)
-    
+
     gl.uniform3fv(customColorLocation, customColor);
 
     function createShader(gl, type, source) {
