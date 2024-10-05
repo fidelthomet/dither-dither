@@ -123,8 +123,50 @@ class DitherDither extends HTMLElement {
     this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
   }
   async resizeCanvas() {
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : null;
+    const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : null;
+    const aspectRatioType = this.getAttribute('aspect-ratio') || 'contain';
+
+    const mediaAspectRatio = this.width / this.height;
+    let canvasWidth, canvasHeight;
+
+    if (customWidth && customHeight) {
+      canvasWidth = customWidth;
+      canvasHeight = customHeight;
+    }
+    else if (customWidth) {
+      canvasWidth = customWidth;
+      canvasHeight = customWidth / mediaAspectRatio;
+    }
+    else if (customHeight) {
+      canvasHeight = customHeight;
+      canvasWidth = customHeight * mediaAspectRatio;
+    }
+    else {
+      canvasWidth = this.width;
+      canvasHeight = this.height;
+    }
+
+    let renderWidth, renderHeight;
+
+    if (aspectRatioType === 'contain') {
+      const scale = Math.min(canvasWidth / this.width, canvasHeight / this.height);
+      renderWidth = this.width * scale;
+      renderHeight = this.height * scale;
+    } else if (aspectRatioType === 'cover') {
+      const scale = Math.max(canvasWidth / this.width, canvasHeight / this.height);
+      renderWidth = this.width * scale;
+      renderHeight = this.height * scale;
+    } else {
+      renderWidth = canvasWidth;
+      renderHeight = canvasHeight;
+    }
+
+    this.canvas.width = canvasWidth;
+    this.canvas.height = canvasHeight;
+
+    this.renderWidth = renderWidth;
+    this.renderHeight = renderHeight;
   }
 
   restoreContext() {
@@ -148,24 +190,21 @@ class DitherDither extends HTMLElement {
 
     const mediaTexture = createTexture(gl, this.media);
     const thresholdTexture = createTexture(gl, this.threshold);
-
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+    const xOffset = (this.renderWidth - this.canvas.width) / 2;
+    const yOffset = (this.renderHeight - this.canvas.height) / 2;
+
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
-        0,
-        0,
-        this.width,
-        0,
-        0,
-        this.height,
-        0,
-        this.height,
-        this.width,
-        0,
-        this.width,
-        this.height,
+        -xOffset, -yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        this.renderWidth - xOffset, this.renderHeight - yOffset
       ]),
       gl.STATIC_DRAW
     );
@@ -184,6 +223,7 @@ class DitherDither extends HTMLElement {
     const imageLocation = gl.getUniformLocation(program, "image");
     const thresholdLocation = gl.getUniformLocation(program, "threshold");
     const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
+    const customColorLocation = gl.getUniformLocation(program, "customColor");
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.useProgram(program);
@@ -195,6 +235,12 @@ class DitherDither extends HTMLElement {
 
     gl.uniform1i(imageLocation, 0);
     gl.uniform1i(thresholdLocation, 1);
+
+    const customColor = this.getAttribute('fill') ? parseColor(this.getAttribute('fill')) : [0.0, 0.0, 0.0];
+
+    console.log(customColor)
+
+    gl.uniform3fv(customColorLocation, customColor);
 
     function createShader(gl, type, source) {
       const shader = gl.createShader(type);
@@ -273,6 +319,7 @@ class DitherDither extends HTMLElement {
     this.initialized = true;
   }
 
+
   freezeCanvas() {
     this.canvas.toBlob((blob) => {
       this.img = document.createElement("img");
@@ -311,6 +358,24 @@ class DitherDither extends HTMLElement {
   destroyObserver() {
     if (this.observer?.unobserve) this.observer.unobserve(this);
   }
+}
+function parseColor(colorString) {
+  if (colorString.startsWith("#")) {
+    let hex = colorString.replace("#", "");
+    if (hex.length === 3) {
+      hex = hex.split("").map(c => c + c).join("");
+    }
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r / 255, g / 255, b / 255];
+  }
+
+  if (colorString.includes(",")) {
+    return colorString.split(",").map(Number);
+  }
+  return [0.0, 0.0, 0.0];
 }
 
 customElements.define("dither-dither", DitherDither);
