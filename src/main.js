@@ -224,6 +224,7 @@ class DitherDither extends HTMLElement {
     const thresholdLocation = gl.getUniformLocation(program, "threshold");
     const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
     const customColorLocation = gl.getUniformLocation(program, "customColor");
+    const invertLocation = gl.getUniformLocation(program, "invert");
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.useProgram(program);
@@ -237,10 +238,10 @@ class DitherDither extends HTMLElement {
     gl.uniform1i(thresholdLocation, 1);
 
     const customColor = this.getAttribute('fill') ? parseColor(this.getAttribute('fill')) : [0.0, 0.0, 0.0];
-
-    console.log(customColor)
+    const invert = this.getAttribute('invert') == "true" ? 1 : 0;
 
     gl.uniform3fv(customColorLocation, customColor);
+    gl.uniform1i(invertLocation, invert);
 
     function createShader(gl, type, source) {
       const shader = gl.createShader(type);
