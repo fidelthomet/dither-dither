@@ -125,9 +125,9 @@ class DitherDither extends HTMLElement {
   async resizeCanvas() {
     const customWidth = this.getAttribute('width') ? parseInt(this.getAttribute('width')) : null;
     const customHeight = this.getAttribute('height') ? parseInt(this.getAttribute('height')) : null;
-    const aspectRatioType = this.getAttribute('aspect-ratio') || 'contain';
+    const ObjectFitType = this.getAttribute('object-fit') || 'contain';
 
-    const mediaAspectRatio = this.width / this.height;
+    const mediaObjectFit = this.width / this.height;
     let canvasWidth, canvasHeight;
 
     if (customWidth && customHeight) {
@@ -136,11 +136,11 @@ class DitherDither extends HTMLElement {
     }
     else if (customWidth) {
       canvasWidth = customWidth;
-      canvasHeight = customWidth / mediaAspectRatio;
+      canvasHeight = customWidth / mediaObjectFit;
     }
     else if (customHeight) {
       canvasHeight = customHeight;
-      canvasWidth = customHeight * mediaAspectRatio;
+      canvasWidth = customHeight * mediaObjectFit;
     }
     else {
       canvasWidth = this.width;
@@ -149,11 +149,11 @@ class DitherDither extends HTMLElement {
 
     let renderWidth, renderHeight;
 
-    if (aspectRatioType === 'contain') {
+    if (ObjectFitType === 'contain') {
       const scale = Math.min(canvasWidth / this.width, canvasHeight / this.height);
       renderWidth = this.width * scale;
       renderHeight = this.height * scale;
-    } else if (aspectRatioType === 'cover') {
+    } else if (ObjectFitType === 'cover') {
       const scale = Math.max(canvasWidth / this.width, canvasHeight / this.height);
       renderWidth = this.width * scale;
       renderHeight = this.height * scale;
