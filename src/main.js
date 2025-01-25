@@ -18,7 +18,8 @@ class DitherDither extends HTMLElement {
     this.intersecting = false;
     this.lastRestore = 0;
   }
-  static observedAttributes = ["src", "threshold-map"];
+  static observedAttributes = ["src", "threshold-map", "dark", "light"];
+
   async attributeChangedCallback(name, oldValue, newValue) {
     if (!this.initialized) return;
     switch (name) {
@@ -39,6 +40,12 @@ class DitherDither extends HTMLElement {
           this.initCanvas();
         }
         this.initGL();
+        break;
+      case "dark":
+      case "light":
+        if (this.initialized) {
+          this.initGL();
+        }
         break;
       default:
         break;
@@ -72,19 +79,8 @@ class DitherDither extends HTMLElement {
     this.canvas.setAttribute("aria-label", this.getAttribute("alt"));
 
     this.resizeCanvas();
-
-    // if (this.restore) {
-    //   this.canvas.addEventListener("webglcontextlost", (e) => {
-    //     e.preventDefault();
-    //     if (this.intersecting) {
-    //       this.restoreContext();
-    //     }
-    //   });
-    //   this.canvas.addEventListener("webglcontextrestored", (e) => {
-    //     if (this.gl.isContextLost()) this.restoreContext();
-    //   });
-    // }
   }
+
   loadMedia(url, isVideo) {
     return new Promise((resolve) => {
       const el = isVideo ? document.createElement("video") : new Image();
@@ -115,7 +111,6 @@ class DitherDither extends HTMLElement {
   }
   async initMedia() {
     this.media = await this.loadMedia(this.mediaSrc, this.isVideo());
-
     this.width = this.media.videoWidth ?? this.media.width;
     this.height = this.media.videoHeight ?? this.media.height;
   }
@@ -123,8 +118,49 @@ class DitherDither extends HTMLElement {
     this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
   }
   async resizeCanvas() {
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    const customWidth = this.getAttribute("width") ? parseInt(this.getAttribute("width")) : null;
+    const customHeight = this.getAttribute("height") ? parseInt(this.getAttribute("height")) : null;
+    const ObjectFitType = this.getAttribute("object-fit") || "contain";
+
+    const mediaObjectFit = this.width / this.height;
+    let canvasWidth, canvasHeight;
+
+    if (customWidth && customHeight) {
+      canvasWidth = customWidth;
+      canvasHeight = customHeight;
+    }
+    else if (customWidth) {
+      canvasWidth = customWidth;
+      canvasHeight = customWidth / mediaObjectFit;
+    }
+    else if (customHeight) {
+      canvasHeight = customHeight;
+      canvasWidth = customHeight * mediaObjectFit;
+    }
+    else {
+      canvasWidth = this.width;
+      canvasHeight = this.height;
+    }
+
+    let renderWidth, renderHeight;
+    if (ObjectFitType === "contain") {
+      const scale = Math.min(canvasWidth / this.width, canvasHeight / this.height);
+      renderWidth = this.width * scale;
+      renderHeight = this.height * scale;
+    } else if (ObjectFitType === "cover") {
+      const scale = Math.max(canvasWidth / this.width, canvasHeight / this.height);
+      renderWidth = this.width * scale;
+      renderHeight = this.height * scale;
+    } else {
+      renderWidth = canvasWidth;
+      renderHeight = canvasHeight;
+    }
+
+    this.canvas.width = canvasWidth;
+    this.canvas.height = canvasHeight;
+
+    this.renderWidth = renderWidth;
+    this.renderHeight = renderHeight;
   }
 
   restoreContext() {
@@ -142,30 +178,26 @@ class DitherDither extends HTMLElement {
   }
   async initGL() {
     const gl = (this.gl = this.canvas.getContext("webgl"));
+    // if (!gl) return;
 
     const program = createProgram(gl, vs, fs);
     gl.useProgram(program);
 
     const mediaTexture = createTexture(gl, this.media);
     const thresholdTexture = createTexture(gl, this.threshold);
-
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
+    const yOffset = (this.renderHeight - this.canvas.height) / 2.0;
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
-        0,
-        0,
-        this.width,
-        0,
-        0,
-        this.height,
-        0,
-        this.height,
-        this.width,
-        0,
-        this.width,
-        this.height,
+        -xOffset, -yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        this.renderWidth - xOffset, this.renderHeight - yOffset
       ]),
       gl.STATIC_DRAW
     );
@@ -174,7 +206,14 @@ class DitherDither extends HTMLElement {
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0]),
+      new Float32Array([
+        0.0, 0.0,
+        1.0, 0.0,
+        0.0, 1.0,
+        0.0, 1.0,
+        1.0, 0.0,
+        1.0, 1.0
+      ]),
       gl.STATIC_DRAW
     );
 
@@ -184,6 +223,8 @@ class DitherDither extends HTMLElement {
     const imageLocation = gl.getUniformLocation(program, "image");
     const thresholdLocation = gl.getUniformLocation(program, "threshold");
     const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
+    const darkColorLocation = gl.getUniformLocation(program, "darkColor");
+    const lightColorLocation = gl.getUniformLocation(program, "lightColor");
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.useProgram(program);
@@ -196,6 +237,16 @@ class DitherDither extends HTMLElement {
     gl.uniform1i(imageLocation, 0);
     gl.uniform1i(thresholdLocation, 1);
 
+    const darkColor = this.getAttribute("dark")
+      ? parseColor(this.getAttribute("dark"))
+      : [0.0, 0.0, 0.0];
+    const lightColor = this.getAttribute("light")
+      ? parseColor(this.getAttribute("light"))
+      : [1.0, 1.0, 1.0];
+
+    gl.uniform3fv(darkColorLocation, darkColor);
+    gl.uniform3fv(lightColorLocation, lightColor);
+
     function createShader(gl, type, source) {
       const shader = gl.createShader(type);
       gl.shaderSource(shader, source);
@@ -204,7 +255,6 @@ class DitherDither extends HTMLElement {
       if (success) {
         return shader;
       }
-
       console.log(gl.getShaderInfoLog(shader));
       gl.deleteShader(shader);
     }
@@ -220,7 +270,6 @@ class DitherDither extends HTMLElement {
       if (success) {
         return program;
       }
-
       console.log(gl.getProgramInfoLog(program));
       gl.deleteProgram(program);
     }
@@ -228,13 +277,10 @@ class DitherDither extends HTMLElement {
     function createTexture(gl, image) {
       const texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);
-
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-
       return texture;
     }
 
@@ -286,7 +332,7 @@ class DitherDither extends HTMLElement {
       this.img.src = url;
       this.removeCanvas();
       this.root.appendChild(this.img);
-      this.gl.getExtension("WEBGL_lose_context").loseContext();
+      this.gl.getExtension("WEBGL_lose_context")?.loseContext();
     });
   }
 
@@ -311,6 +357,24 @@ class DitherDither extends HTMLElement {
   destroyObserver() {
     if (this.observer?.unobserve) this.observer.unobserve(this);
   }
+}
+function parseColor(colorString) {
+  if (colorString.startsWith("#")) {
+    let hex = colorString.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split("").map(c => c + c).join("");
+    }
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r / 255, g / 255, b / 255];
+  }
+
+  if (colorString.includes(",")) {
+    return colorString.split(",").map(Number);
+  }
+  return [0.0, 0.0, 0.0];
 }
 
 customElements.define("dither-dither", DitherDither);
