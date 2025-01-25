@@ -22,17 +22,25 @@
   </div>
   <h2>Custom color</h2>
   <div>
-    <dither-dither src="./hermannstrasse.jpg" fill="0,0,255"></dither-dither>
-    <dither-dither src="./hermannstrasse.jpg" fill="#889a97"></dither-dither>
-    <dither-dither src="./hermannstrasse.mp4" fill="#978893"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" dark="0,0,255"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" light="0,0,255"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" dark="255,0,0" light="0,0,255"></dither-dither>
   </div>
+  <hr>
+  <div>
+    <dither-dither src="./hermannstrasse.mp4" dark="#978893"></dither-dither>
+    <dither-dither src="./hermannstrasse.mp4" light="#978893"></dither-dither>
+    <dither-dither src="./hermannstrasse.mp4" dark="#889a97" light="#978893"></dither-dither>
+  </div>
+
   <h2>Custom size & object fit</h2>
   <div>
-    <dither-dither src="./hermannstrasse_1.jpg" width="150" object-fit="contain"></dither-dither>
-    <dither-dither src="./hermannstrasse_1.jpg" height="250" object-fit="contain"></dither-dither>
-    <dither-dither src="./hermannstrasse_1.jpg" width="150" height="500" object-fit="contain"></dither-dither>
-    <dither-dither src="./hermannstrasse_1.jpg" width="150" height="500" object-fit="cover"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" width="150"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" height="250"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="contain"></dither-dither>
+    <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="cover"></dither-dither>
   </div>
+
   <h2>Custom threshold map</h2>
   <div>
     <img src="./hermannstrasse.jpg" />

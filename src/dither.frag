@@ -2,25 +2,20 @@ precision mediump float;
 
 uniform sampler2D image;
 uniform sampler2D threshold;
-
 uniform vec2 resolution;
-uniform vec3 customColor;
-uniform int invert;
+uniform vec3 darkColor;
+uniform vec3 lightColor;
+
 varying vec2 v_texCoord;
 
 vec4 dither(vec2 position, vec4 color) {
   float brightness = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-  vec2 vecMod = vec2(mod(position.x, resolution.x), mod(position.y, resolution.y));
-  vec2 uv = vecMod / resolution.xy;
+  vec2 vecMod = mod(position, resolution);
+  vec2 uv = vecMod / resolution;
   vec4 limit = texture2D(threshold, uv);
 
   float dithered = brightness < limit.x ? 0.0 : 1.0;
-  vec3 finalColor = mix(customColor, vec3(1.0), dithered);
-  
-  if (invert == 1) {
-    finalColor = mix(vec3(1.0), customColor, dithered);
-  }
-
+  vec3 finalColor = mix(darkColor, lightColor, dithered);
   return vec4(finalColor, 1.0);
 }
 
