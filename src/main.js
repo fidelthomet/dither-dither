@@ -107,7 +107,7 @@ class DitherDither extends HTMLElement {
     this.intersecting = false;
     this.lastRestore = 0;
   }
-  static observedAttributes = ["src", "threshold-map", "dark", "light"];
+  static observedAttributes = ["src", "threshold-map"];
 
   async attributeChangedCallback(name, oldValue, newValue) {
     if (!this.initialized) return;
@@ -129,12 +129,6 @@ class DitherDither extends HTMLElement {
           this.initCanvas();
         }
         this.initGL();
-        break;
-      case "dark":
-      case "light":
-        if (this.initialized) {
-          this.initGL();
-        }
         break;
       default:
         break;
@@ -319,14 +313,8 @@ class DitherDither extends HTMLElement {
     gl.uniform2f(locations.resolution, glCanvas.width, glCanvas.height);
     gl.uniform2f(locations.resolutionThreshold, this.threshold.width, this.threshold.height);
 
-    const darkColor = this.getAttribute("dark")
-      ? parseColor(this.getAttribute("dark"))
-      : [0.0, 0.0, 0.0];
-    const lightColor = this.getAttribute("light")
-      ? parseColor(this.getAttribute("light"))
-      : [1.0, 1.0, 1.0];
-    gl.uniform3fv(locations.darkColor, darkColor);
-    gl.uniform3fv(locations.lightColor, lightColor);
+    gl.uniform3fv(locations.darkColor, [0.0, 0.0, 0.0]);
+    gl.uniform3fv(locations.lightColor, [1.0, 1.0, 1.0]);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.mediaTexture);
@@ -381,24 +369,6 @@ class DitherDither extends HTMLElement {
   destroyObserver() {
     if (this.observer?.unobserve) this.observer.unobserve(this);
   }
-}
-function parseColor(colorString) {
-  if (colorString.startsWith("#")) {
-    let hex = colorString.slice(1);
-    if (hex.length === 3) {
-      hex = hex.split("").map(c => c + c).join("");
-    }
-    const bigint = parseInt(hex, 16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return [r / 255, g / 255, b / 255];
-  }
-
-  if (colorString.includes(",")) {
-    return colorString.split(",").map(Number);
-  }
-  return [0.0, 0.0, 0.0];
 }
 
 customElements.define("dither-dither", DitherDither);
