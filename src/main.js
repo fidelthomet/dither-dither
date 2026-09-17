@@ -44,15 +44,62 @@ function updateTexture(gl, texture, image) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
+const glCanvas = document.createElement("canvas");
+const gl = glCanvas.getContext("webgl");
+let program, positionBuffer, texcoordBuffer, locations;
+
+function initShared() {
+  if (!gl) return;
+  program = createProgram(gl, vs, fs);
+  gl.useProgram(program);
+
+  positionBuffer = gl.createBuffer();
+  texcoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+      0.0, 0.0,
+      1.0, 0.0,
+      0.0, 1.0,
+      0.0, 1.0,
+      1.0, 0.0,
+      1.0, 1.0
+    ]),
+    gl.STATIC_DRAW
+  );
+
+  locations = {
+    position: gl.getAttribLocation(program, "a_position"),
+    texcoord: gl.getAttribLocation(program, "a_texCoord"),
+    resolution: gl.getUniformLocation(program, "u_resolution"),
+    image: gl.getUniformLocation(program, "image"),
+    threshold: gl.getUniformLocation(program, "threshold"),
+    resolutionThreshold: gl.getUniformLocation(program, "resolution"),
+    darkColor: gl.getUniformLocation(program, "darkColor"),
+    lightColor: gl.getUniformLocation(program, "lightColor"),
+  };
+}
+initShared();
+
+if (gl) {
+  glCanvas.addEventListener("webglcontextlost", (event) => {
+    event.preventDefault();
+  });
+  glCanvas.addEventListener("webglcontextrestored", initShared);
+}
+
 class DitherDither extends HTMLElement {
   constructor() {
     super();
     this.root = null;
     this.canvas = null;
+    this.ctx = null;
     this.media = null;
     this.threshold = null;
+    this.mediaTexture = null;
+    this.thresholdTexture = null;
     this.initialized = null;
-    this.gl = null;
     this.observer = null;
     this.width = 0;
     this.height = 0;
@@ -119,6 +166,8 @@ class DitherDither extends HTMLElement {
 
     this.canvas.setAttribute("role", "img");
     this.canvas.setAttribute("aria-label", this.getAttribute("alt"));
+
+    this.ctx = this.canvas.getContext("2d");
 
     this.resizeCanvas();
   }
@@ -206,54 +255,22 @@ class DitherDither extends HTMLElement {
   }
 
   restoreContext() {
-    if (!this.gl.isContextLost()) return;
+    if (!gl || gl.isContextLost()) return;
     const time = new Date().getTime();
     if (this.lastRestore + 750 > time) return;
     this.lastRestore = time;
-    this.removeCanvas();
-    this.initCanvas();
     this.initGL();
   }
   removeCanvas() {
     this.canvas.remove();
     this.canvas = null;
+    this.ctx = null;
   }
   async initGL() {
-    const gl = (this.gl = this.canvas.getContext("webgl"));
-    // if (!gl) return;
-
-    this.program = createProgram(gl, vs, fs);
-    gl.useProgram(this.program);
+    if (!gl) return;
 
     this.mediaTexture = createTexture(gl, this.media);
     this.thresholdTexture = createTexture(gl, this.threshold);
-
-    this.positionBuffer = gl.createBuffer();
-    this.texcoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.texcoordBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([
-        0.0, 0.0,
-        1.0, 0.0,
-        0.0, 1.0,
-        0.0, 1.0,
-        1.0, 0.0,
-        1.0, 1.0
-      ]),
-      gl.STATIC_DRAW
-    );
-
-    this.locations = {
-      position: gl.getAttribLocation(this.program, "a_position"),
-      texcoord: gl.getAttribLocation(this.program, "a_texCoord"),
-      resolution: gl.getUniformLocation(this.program, "u_resolution"),
-      image: gl.getUniformLocation(this.program, "image"),
-      threshold: gl.getUniformLocation(this.program, "threshold"),
-      resolutionThreshold: gl.getUniformLocation(this.program, "resolution"),
-      darkColor: gl.getUniformLocation(this.program, "darkColor"),
-      lightColor: gl.getUniformLocation(this.program, "lightColor"),
-    };
 
     this.render = () => {
       if (this.isVideo()) {
@@ -272,15 +289,14 @@ class DitherDither extends HTMLElement {
   }
 
   draw() {
-    const gl = this.gl;
-    const { locations } = this;
-
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.useProgram(this.program);
+    glCanvas.width = this.canvas.width;
+    glCanvas.height = this.canvas.height;
+    gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+    gl.useProgram(program);
 
     const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
     const yOffset = (this.renderHeight - this.canvas.height) / 2.0;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
@@ -296,11 +312,11 @@ class DitherDither extends HTMLElement {
     gl.enableVertexAttribArray(locations.position);
     gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.texcoordBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     gl.enableVertexAttribArray(locations.texcoord);
     gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-    gl.uniform2f(locations.resolution, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(locations.resolution, glCanvas.width, glCanvas.height);
     gl.uniform2f(locations.resolutionThreshold, this.threshold.width, this.threshold.height);
 
     const darkColor = this.getAttribute("dark")
@@ -323,6 +339,9 @@ class DitherDither extends HTMLElement {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.drawImage(glCanvas, 0, 0);
   }
 
   freezeCanvas() {
@@ -338,7 +357,6 @@ class DitherDither extends HTMLElement {
       this.img.src = url;
       this.removeCanvas();
       this.root.appendChild(this.img);
-      this.gl.getExtension("WEBGL_lose_context")?.loseContext();
     });
   }
 
@@ -351,7 +369,7 @@ class DitherDither extends HTMLElement {
           if (!this.immediate && !this.initialized) {
             this.initGL();
           }
-          if (this.restore && !this.isFrozen() && this.gl.isContextLost()) {
+          if (this.restore && !this.isFrozen() && gl?.isContextLost()) {
             this.restoreContext();
           }
         }
