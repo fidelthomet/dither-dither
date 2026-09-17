@@ -222,30 +222,15 @@ class DitherDither extends HTMLElement {
     const gl = (this.gl = this.canvas.getContext("webgl"));
     // if (!gl) return;
 
-    const program = createProgram(gl, vs, fs);
-    gl.useProgram(program);
+    this.program = createProgram(gl, vs, fs);
+    gl.useProgram(this.program);
 
-    const mediaTexture = createTexture(gl, this.media);
-    const thresholdTexture = createTexture(gl, this.threshold);
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
-    const yOffset = (this.renderHeight - this.canvas.height) / 2.0;
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([
-        -xOffset, -yOffset,
-        this.renderWidth - xOffset, -yOffset,
-        -xOffset, this.renderHeight - yOffset,
-        -xOffset, this.renderHeight - yOffset,
-        this.renderWidth - xOffset, -yOffset,
-        this.renderWidth - xOffset, this.renderHeight - yOffset
-      ]),
-      gl.STATIC_DRAW
-    );
+    this.mediaTexture = createTexture(gl, this.media);
+    this.thresholdTexture = createTexture(gl, this.threshold);
 
-    const texcoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    this.positionBuffer = gl.createBuffer();
+    this.texcoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.texcoordBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
@@ -259,56 +244,23 @@ class DitherDither extends HTMLElement {
       gl.STATIC_DRAW
     );
 
-    const positionLocation = gl.getAttribLocation(program, "a_position");
-    const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
-    const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    const imageLocation = gl.getUniformLocation(program, "image");
-    const thresholdLocation = gl.getUniformLocation(program, "threshold");
-    const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
-    const darkColorLocation = gl.getUniformLocation(program, "darkColor");
-    const lightColorLocation = gl.getUniformLocation(program, "lightColor");
-
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.useProgram(program);
-    gl.enableVertexAttribArray(positionLocation);
-    gl.enableVertexAttribArray(texcoordLocation);
-
-    gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
-    gl.uniform2f(resolutionThresholdLocation, this.threshold.width, this.threshold.height);
-
-    gl.uniform1i(imageLocation, 0);
-    gl.uniform1i(thresholdLocation, 1);
-
-    const darkColor = this.getAttribute("dark")
-      ? parseColor(this.getAttribute("dark"))
-      : [0.0, 0.0, 0.0];
-    const lightColor = this.getAttribute("light")
-      ? parseColor(this.getAttribute("light"))
-      : [1.0, 1.0, 1.0];
-
-    gl.uniform3fv(darkColorLocation, darkColor);
-    gl.uniform3fv(lightColorLocation, lightColor);
+    this.locations = {
+      position: gl.getAttribLocation(this.program, "a_position"),
+      texcoord: gl.getAttribLocation(this.program, "a_texCoord"),
+      resolution: gl.getUniformLocation(this.program, "u_resolution"),
+      image: gl.getUniformLocation(this.program, "image"),
+      threshold: gl.getUniformLocation(this.program, "threshold"),
+      resolutionThreshold: gl.getUniformLocation(this.program, "resolution"),
+      darkColor: gl.getUniformLocation(this.program, "darkColor"),
+      lightColor: gl.getUniformLocation(this.program, "lightColor"),
+    };
 
     this.render = () => {
       if (this.isVideo()) {
-        updateTexture(gl, mediaTexture, this.media);
+        updateTexture(gl, this.mediaTexture, this.media);
         requestAnimationFrame(this.render);
       }
-
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-      gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
-
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, mediaTexture);
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, thresholdTexture);
-
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      this.draw();
     };
     this.render();
 
@@ -317,6 +269,60 @@ class DitherDither extends HTMLElement {
     }
 
     this.initialized = true;
+  }
+
+  draw() {
+    const gl = this.gl;
+    const { locations } = this;
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.useProgram(this.program);
+
+    const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
+    const yOffset = (this.renderHeight - this.canvas.height) / 2.0;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([
+        -xOffset, -yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        -xOffset, this.renderHeight - yOffset,
+        this.renderWidth - xOffset, -yOffset,
+        this.renderWidth - xOffset, this.renderHeight - yOffset
+      ]),
+      gl.STATIC_DRAW
+    );
+    gl.enableVertexAttribArray(locations.position);
+    gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.texcoordBuffer);
+    gl.enableVertexAttribArray(locations.texcoord);
+    gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
+
+    gl.uniform2f(locations.resolution, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(locations.resolutionThreshold, this.threshold.width, this.threshold.height);
+
+    const darkColor = this.getAttribute("dark")
+      ? parseColor(this.getAttribute("dark"))
+      : [0.0, 0.0, 0.0];
+    const lightColor = this.getAttribute("light")
+      ? parseColor(this.getAttribute("light"))
+      : [1.0, 1.0, 1.0];
+    gl.uniform3fv(locations.darkColor, darkColor);
+    gl.uniform3fv(locations.lightColor, lightColor);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.mediaTexture);
+    gl.uniform1i(locations.image, 0);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.thresholdTexture);
+    gl.uniform1i(locations.threshold, 1);
+
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
   freezeCanvas() {
