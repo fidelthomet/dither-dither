@@ -275,30 +275,31 @@ class DitherDither extends HTMLElement {
     gl.uniform3fv(locations.darkColor, [0.0, 0.0, 0.0]);
     gl.uniform3fv(locations.lightColor, [1.0, 1.0, 1.0]);
 
-    this.render = () => {
-      if (this.isVideo()) {
-        uploadTexture(gl, mediaTexture, this.media);
-        requestAnimationFrame(this.render);
-      }
-
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-      gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
-
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, mediaTexture);
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, thresholdTexture);
-
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    };
-    this.render();
+    this.draw(gl, mediaTexture, thresholdTexture, positionBuffer, texcoordBuffer);
 
     this.initialized = true;
+  }
+
+  draw(gl, mediaTexture, thresholdTexture, positionBuffer, texcoordBuffer) {
+    if (this.isVideo()) {
+      uploadTexture(gl, mediaTexture, this.media);
+      requestAnimationFrame(() => this.draw(gl, mediaTexture, thresholdTexture, positionBuffer, texcoordBuffer));
+    }
+
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+    gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, mediaTexture);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, thresholdTexture);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
 
   initObserver() {
