@@ -109,9 +109,6 @@ class DitherDither extends HTMLElement {
     this.observer = null;
     this.width = 0;
     this.height = 0;
-    this.restore = true;
-    this.intersecting = false;
-    this.lastRestore = 0;
   }
   static observedAttributes = ["src", "threshold-map", "dark", "light"];
 
@@ -152,7 +149,6 @@ class DitherDither extends HTMLElement {
     this.mediaSrc = this.getAttribute("src");
     this.thresholdSrc = this.getAttribute("threshold-map");
     this.immediate = this.getAttribute("immediate") != null;
-    this.restore = this.getAttribute("restore") !== "false";
 
     this.root = this.attachShadow({ mode: "closed" });
     this.initCanvas();
@@ -250,20 +246,6 @@ class DitherDither extends HTMLElement {
     this.renderHeight = renderHeight;
   }
 
-  restoreContext() {
-    if (gl.isContextLost()) return;
-    const time = new Date().getTime();
-    if (this.lastRestore + 750 > time) return;
-    this.lastRestore = time;
-    this.removeCanvas();
-    this.initCanvas();
-    initGL(this);
-  }
-  removeCanvas() {
-    this.canvas.remove();
-    this.canvas = null;
-  }
-
   draw() {
     if (this.isVideo()) requestAnimationFrame(() => this.draw());
     if (gl.isContextLost()) return;
@@ -306,7 +288,7 @@ class DitherDither extends HTMLElement {
     gl.uniform3fv(locations.lightColor, [1, 1, 1]);
 
     gl.activeTexture(gl.TEXTURE0);
-    uploadTexture(gl, mediaTexture, this.media); // every draw, images included
+    uploadTexture(gl, mediaTexture, this.media);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, thresholdTexture(this));
 
@@ -319,16 +301,12 @@ class DitherDither extends HTMLElement {
   }
 
   initObserver() {
-    if (this.immediate || !this.restore) return;
+    if (this.immediate) return;
     this.observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        this.intersecting = entry.isIntersecting;
         if (entry.isIntersecting) {
           if (!this.immediate && !this.initialized) {
             initGL(this);
-          }
-          if (this.restore && gl.isContextLost()) {
-            this.restoreContext();
           }
         }
       });
