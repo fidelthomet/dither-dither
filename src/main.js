@@ -2,9 +2,13 @@ import vs from "./dither.vert?raw";
 import fs from "./dither.frag?raw";
 import thresholdMap from "./BlueNoise.png";
 
-let locations;
+const sharedCanvas = new OffscreenCanvas(1, 1);
+const gl = sharedCanvas.getContext("webgl2");
 
-function compile(gl, type, source) {
+let locations, texcoordBuffer, positionBuffer, mediaTexture;
+const thresholdTextures = new Map();
+
+function compile(type, source) {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
@@ -14,14 +18,13 @@ function compile(gl, type, source) {
     gl.deleteShader(shader);
     throw new Error(log);
   }
-
   return shader;
 }
 
-function createProgram(gl, vs, fs) {
+function createProgram(vs, fs) {
   const program = gl.createProgram();
-  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vs));
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fs));
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fs));
   gl.linkProgram(program);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
@@ -34,7 +37,7 @@ function createProgram(gl, vs, fs) {
   return program;
 }
 
-function createTexture(gl) {
+function createTexture() {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -47,45 +50,11 @@ function uploadTexture(gl, texture, image) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
-function initGL(el) {
-  const gl = (el.gl = el.canvas.getContext("webgl2"));
+function initShared() {
+  // const gl = (el.gl = el.canvas.getContext("webgl2"));
   // if (!gl) return;
 
-  const program = createProgram(gl, vs, fs);
-
-  const mediaTexture = createTexture(gl);
-  uploadTexture(gl, mediaTexture, el.media);
-  const thresholdTexture = createTexture(gl);
-  uploadTexture(gl, thresholdTexture, el.threshold);
-
-  const positionBuffer = gl.createBuffer();
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  const xOffset = (el.renderWidth - el.canvas.width) / 2.0;
-  const yOffset = (el.renderHeight - el.canvas.height) / 2.0;
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array([
-      -xOffset,
-      -yOffset,
-      el.renderWidth - xOffset,
-      -yOffset,
-      -xOffset,
-      el.renderHeight - yOffset,
-      -xOffset,
-      el.renderHeight - yOffset,
-      el.renderWidth - xOffset,
-      -yOffset,
-      el.renderWidth - xOffset,
-      el.renderHeight - yOffset,
-    ]),
-    gl.STATIC_DRAW,
-  );
-
-  const texcoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
-
+  const program = createProgram(vs, fs);
   locations = {
     position: gl.getAttribLocation(program, "a_position"),
     texcoord: gl.getAttribLocation(program, "a_texCoord"),
@@ -97,22 +66,40 @@ function initGL(el) {
     lightColor: gl.getUniformLocation(program, "lightColor"),
   };
 
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-  gl.useProgram(program);
+  positionBuffer = gl.createBuffer();
+  texcoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
+
+  mediaTexture = createTexture();
+  thresholdTextures.clear();
+
   gl.enableVertexAttribArray(locations.position);
   gl.enableVertexAttribArray(locations.texcoord);
-
-  gl.uniform2f(locations.resolution, gl.canvas.width, gl.canvas.height);
-  gl.uniform2f(locations.thresholdSize, el.threshold.width, el.threshold.height);
-
   gl.uniform1i(locations.image, 0);
   gl.uniform1i(locations.threshold, 1);
   gl.uniform3fv(locations.darkColor, [0.0, 0.0, 0.0]);
   gl.uniform3fv(locations.lightColor, [1.0, 1.0, 1.0]);
+}
 
-  el.draw(gl, mediaTexture, thresholdTexture, positionBuffer, texcoordBuffer);
+initShared();
 
+sharedCanvas.addEventListener("webglcontextlost", (e) => e.preventDefault());
+sharedCanvas.addEventListener("webglcontextrestored", initShared);
+
+function thresholdTexture(el) {
+  const key = el.thresholdSrc ?? thresholdMap;
+  if (!thresholdTextures.has(key)) {
+    const texture = createTexture(gl);
+    uploadTexture(gl, texture, el.threshold);
+    thresholdTextures.set(key, texture);
+  }
+  return thresholdTextures.get(key);
+}
+
+function initGL(el) {
   el.initialized = true;
+  el.draw();
 }
 
 class DitherDither extends HTMLElement {
@@ -123,7 +110,6 @@ class DitherDither extends HTMLElement {
     this.media = null;
     this.threshold = null;
     this.initialized = null;
-    this.gl = null;
     this.observer = null;
     this.width = 0;
     this.height = 0;
@@ -191,6 +177,7 @@ class DitherDither extends HTMLElement {
     this.canvas.setAttribute("role", "img");
     this.canvas.setAttribute("aria-label", this.getAttribute("alt"));
 
+    this.ctx = this.canvas.getContext("2d");
     this.resizeCanvas();
   }
 
@@ -268,7 +255,7 @@ class DitherDither extends HTMLElement {
   }
 
   restoreContext() {
-    if (!this.gl.isContextLost()) return;
+    if (gl.isContextLost()) return;
     const time = new Date().getTime();
     if (this.lastRestore + 750 > time) return;
     this.lastRestore = time;
@@ -281,26 +268,58 @@ class DitherDither extends HTMLElement {
     this.canvas = null;
   }
 
-  draw(gl, mediaTexture, thresholdTexture, positionBuffer, texcoordBuffer) {
-    if (this.isVideo()) {
-      uploadTexture(gl, mediaTexture, this.media);
-      requestAnimationFrame(() => this.draw(gl, mediaTexture, thresholdTexture, positionBuffer, texcoordBuffer));
-    }
+  draw() {
+    if (this.isVideo()) requestAnimationFrame(() => this.draw());
+    if (gl.isContextLost()) return;
 
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    const { width, height } = this.canvas;
+    sharedCanvas.width = Math.max(sharedCanvas.width, width);
+    sharedCanvas.height = Math.max(sharedCanvas.height, height);
+
+    gl.viewport(0, 0, width, height);
+
+    const xOffset = (this.renderWidth - width) / 2;
+    const yOffset = (this.renderHeight - height) / 2;
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([
+        -xOffset,
+        -yOffset,
+        this.renderWidth - xOffset,
+        -yOffset,
+        -xOffset,
+        this.renderHeight - yOffset,
+        -xOffset,
+        this.renderHeight - yOffset,
+        this.renderWidth - xOffset,
+        -yOffset,
+        this.renderWidth - xOffset,
+        this.renderHeight - yOffset,
+      ]),
+      gl.DYNAMIC_DRAW,
+    );
 
+    gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, mediaTexture);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, thresholdTexture);
+    gl.uniform2f(locations.resolution, width, height);
+    gl.uniform2f(locations.thresholdSize, this.threshold.width, this.threshold.height);
+    gl.uniform3fv(locations.darkColor, [0, 0, 0]);
+    gl.uniform3fv(locations.lightColor, [1, 1, 1]);
 
+    gl.activeTexture(gl.TEXTURE0);
+    uploadTexture(gl, mediaTexture, this.media); // every draw, images included
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, thresholdTexture(this));
+
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    this.ctx.clearRect(0, 0, width, height);
+    this.ctx.drawImage(sharedCanvas, 0, sharedCanvas.height - height, width, height, 0, 0, width, height);
   }
 
   initObserver() {
@@ -312,7 +331,7 @@ class DitherDither extends HTMLElement {
           if (!this.immediate && !this.initialized) {
             initGL(this);
           }
-          if (this.restore && this.gl.isContextLost()) {
+          if (this.restore && gl.isContextLost()) {
             this.restoreContext();
           }
         }
