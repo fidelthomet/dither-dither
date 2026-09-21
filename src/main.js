@@ -2,6 +2,70 @@ import vs from "./dither.vert?raw";
 import fs from "./dither.frag?raw";
 import thresholdMap from "./BlueNoise.png";
 
+function createShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+  if (success) {
+    return shader;
+  }
+  console.log(gl.getShaderInfoLog(shader));
+  gl.deleteShader(shader);
+}
+
+function createProgram(gl, vs, fs) {
+  const vertexShader = createShader(gl, gl.VERTEX_SHADER, vs);
+  const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fs);
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  const success = gl.getProgramParameter(program, gl.LINK_STATUS);
+  if (success) {
+    return program;
+  }
+  console.log(gl.getProgramInfoLog(program));
+  gl.deleteProgram(program);
+}
+
+function createTexture(gl, image) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  return texture;
+}
+
+function updateTexture(gl, texture, image) {
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+}
+
+function parseColor(colorString) {
+  if (colorString.startsWith("#")) {
+    let hex = colorString.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split("")
+        .map((c) => c + c)
+        .join("");
+    }
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r / 255, g / 255, b / 255];
+  }
+
+  if (colorString.includes(",")) {
+    return colorString.split(",").map(Number);
+  }
+  return [0.0, 0.0, 0.0];
+}
+
 class DitherDither extends HTMLElement {
   constructor() {
     super();
@@ -100,8 +164,7 @@ class DitherDither extends HTMLElement {
   isVideo() {
     return (
       this.getAttribute("type") === "video" ||
-      (this.getAttribute("type") == null &&
-        ["mp4", "webm", "ogg"].includes(this.mediaSrc.match(/[^.]+$/)[0]))
+      (this.getAttribute("type") == null && ["mp4", "webm", "ogg"].includes(this.mediaSrc.match(/[^.]+$/)[0]))
     );
   }
   isFrozen() {
@@ -128,16 +191,13 @@ class DitherDither extends HTMLElement {
     if (customWidth && customHeight) {
       canvasWidth = customWidth;
       canvasHeight = customHeight;
-    }
-    else if (customWidth) {
+    } else if (customWidth) {
       canvasWidth = customWidth;
       canvasHeight = customWidth / mediaObjectFit;
-    }
-    else if (customHeight) {
+    } else if (customHeight) {
       canvasHeight = customHeight;
       canvasWidth = customHeight * mediaObjectFit;
-    }
-    else {
+    } else {
       canvasWidth = this.width;
       canvasHeight = this.height;
     }
@@ -192,29 +252,28 @@ class DitherDither extends HTMLElement {
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
-        -xOffset, -yOffset,
-        this.renderWidth - xOffset, -yOffset,
-        -xOffset, this.renderHeight - yOffset,
-        -xOffset, this.renderHeight - yOffset,
-        this.renderWidth - xOffset, -yOffset,
-        this.renderWidth - xOffset, this.renderHeight - yOffset
+        -xOffset,
+        -yOffset,
+        this.renderWidth - xOffset,
+        -yOffset,
+        -xOffset,
+        this.renderHeight - yOffset,
+        -xOffset,
+        this.renderHeight - yOffset,
+        this.renderWidth - xOffset,
+        -yOffset,
+        this.renderWidth - xOffset,
+        this.renderHeight - yOffset,
       ]),
-      gl.STATIC_DRAW
+      gl.STATIC_DRAW,
     );
 
     const texcoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
-      new Float32Array([
-        0.0, 0.0,
-        1.0, 0.0,
-        0.0, 1.0,
-        0.0, 1.0,
-        1.0, 0.0,
-        1.0, 1.0
-      ]),
-      gl.STATIC_DRAW
+      new Float32Array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0]),
+      gl.STATIC_DRAW,
     );
 
     const positionLocation = gl.getAttribLocation(program, "a_position");
@@ -237,57 +296,11 @@ class DitherDither extends HTMLElement {
     gl.uniform1i(imageLocation, 0);
     gl.uniform1i(thresholdLocation, 1);
 
-    const darkColor = this.getAttribute("dark")
-      ? parseColor(this.getAttribute("dark"))
-      : [0.0, 0.0, 0.0];
-    const lightColor = this.getAttribute("light")
-      ? parseColor(this.getAttribute("light"))
-      : [1.0, 1.0, 1.0];
+    const darkColor = this.getAttribute("dark") ? parseColor(this.getAttribute("dark")) : [0.0, 0.0, 0.0];
+    const lightColor = this.getAttribute("light") ? parseColor(this.getAttribute("light")) : [1.0, 1.0, 1.0];
 
     gl.uniform3fv(darkColorLocation, darkColor);
     gl.uniform3fv(lightColorLocation, lightColor);
-
-    function createShader(gl, type, source) {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-      if (success) {
-        return shader;
-      }
-      console.log(gl.getShaderInfoLog(shader));
-      gl.deleteShader(shader);
-    }
-
-    function createProgram(gl, vs, fs) {
-      const vertexShader = createShader(gl, gl.VERTEX_SHADER, vs);
-      const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fs);
-      const program = gl.createProgram();
-      gl.attachShader(program, vertexShader);
-      gl.attachShader(program, fragmentShader);
-      gl.linkProgram(program);
-      const success = gl.getProgramParameter(program, gl.LINK_STATUS);
-      if (success) {
-        return program;
-      }
-      console.log(gl.getProgramInfoLog(program));
-      gl.deleteProgram(program);
-    }
-
-    function createTexture(gl, image) {
-      const texture = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-      return texture;
-    }
-
-    function updateTexture(gl, texture, image) {
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    }
 
     this.render = () => {
       if (this.isVideo()) {
@@ -357,24 +370,6 @@ class DitherDither extends HTMLElement {
   destroyObserver() {
     if (this.observer?.unobserve) this.observer.unobserve(this);
   }
-}
-function parseColor(colorString) {
-  if (colorString.startsWith("#")) {
-    let hex = colorString.slice(1);
-    if (hex.length === 3) {
-      hex = hex.split("").map(c => c + c).join("");
-    }
-    const bigint = parseInt(hex, 16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return [r / 255, g / 255, b / 255];
-  }
-
-  if (colorString.includes(",")) {
-    return colorString.split(",").map(Number);
-  }
-  return [0.0, 0.0, 0.0];
 }
 
 customElements.define("dither-dither", DitherDither);
