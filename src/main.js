@@ -47,28 +47,6 @@ function uploadTexture(gl, texture, image) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
-function parseColor(colorString) {
-  if (colorString.startsWith("#")) {
-    let hex = colorString.slice(1);
-    if (hex.length === 3) {
-      hex = hex
-        .split("")
-        .map((c) => c + c)
-        .join("");
-    }
-    const bigint = parseInt(hex, 16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return [r / 255, g / 255, b / 255];
-  }
-
-  if (colorString.includes(",")) {
-    return colorString.split(",").map(Number);
-  }
-  return [0.0, 0.0, 0.0];
-}
-
 class DitherDither extends HTMLElement {
   constructor() {
     super();
@@ -294,12 +272,8 @@ class DitherDither extends HTMLElement {
 
     gl.uniform1i(locations.image, 0);
     gl.uniform1i(locations.threshold, 1);
-
-    const darkColor = this.getAttribute("dark") ? parseColor(this.getAttribute("dark")) : [0.0, 0.0, 0.0];
-    const lightColor = this.getAttribute("light") ? parseColor(this.getAttribute("light")) : [1.0, 1.0, 1.0];
-
-    gl.uniform3fv(locations.darkColor, darkColor);
-    gl.uniform3fv(locations.lightColor, lightColor);
+    gl.uniform3fv(locations.darkColor, [0.0, 0.0, 0.0]);
+    gl.uniform3fv(locations.lightColor, [1.0, 1.0, 1.0]);
 
     this.render = () => {
       if (this.isVideo()) {
