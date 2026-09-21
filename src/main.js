@@ -16,6 +16,22 @@ function compile(gl, type, source) {
   return shader;
 }
 
+function createProgram(gl, vs, fs) {
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vs));
+  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error(log);
+  }
+
+  gl.useProgram(program);
+  return program;
+}
+
 function createTexture(gl) {
   const texture = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -27,21 +43,6 @@ function createTexture(gl) {
 function uploadTexture(gl, texture, image) {
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-}
-
-function createProgram(gl, vs, fs) {
-  const vertexShader = compile(gl, gl.VERTEX_SHADER, vs);
-  const fragmentShader = compile(gl, gl.FRAGMENT_SHADER, fs);
-  const program = gl.createProgram();
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  const success = gl.getProgramParameter(program, gl.LINK_STATUS);
-  if (success) {
-    return program;
-  }
-  console.log(gl.getProgramInfoLog(program));
-  gl.deleteProgram(program);
 }
 
 function parseColor(colorString) {
@@ -236,13 +237,14 @@ class DitherDither extends HTMLElement {
     // if (!gl) return;
 
     const program = createProgram(gl, vs, fs);
-    gl.useProgram(program);
 
     const mediaTexture = createTexture(gl);
     uploadTexture(gl, mediaTexture, this.media);
     const thresholdTexture = createTexture(gl);
     uploadTexture(gl, thresholdTexture, this.threshold);
+
     const positionBuffer = gl.createBuffer();
+
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
     const yOffset = (this.renderHeight - this.canvas.height) / 2.0;
