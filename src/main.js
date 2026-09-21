@@ -21,7 +21,7 @@ function compile(type, source) {
   return shader;
 }
 
-function createProgram(vs, fs) {
+function createProgram() {
   const program = gl.createProgram();
   gl.attachShader(program, compile(gl.VERTEX_SHADER, vs));
   gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fs));
@@ -51,10 +51,8 @@ function uploadTexture(gl, texture, image) {
 }
 
 function initShared() {
-  // const gl = (el.gl = el.canvas.getContext("webgl2"));
-  // if (!gl) return;
+  const program = createProgram();
 
-  const program = createProgram(vs, fs);
   locations = {
     position: gl.getAttribLocation(program, "a_position"),
     texcoord: gl.getAttribLocation(program, "a_texCoord"),
@@ -78,8 +76,6 @@ function initShared() {
   gl.enableVertexAttribArray(locations.texcoord);
   gl.uniform1i(locations.image, 0);
   gl.uniform1i(locations.threshold, 1);
-  gl.uniform3fv(locations.darkColor, [0.0, 0.0, 0.0]);
-  gl.uniform3fv(locations.lightColor, [1.0, 1.0, 1.0]);
 }
 
 initShared();
