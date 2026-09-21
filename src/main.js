@@ -93,6 +93,14 @@ function thresholdTexture(el) {
   return thresholdTextures.get(key);
 }
 
+function parseColor(ctx, color) {
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+  return [r / 255, g / 255, b / 255, a / 255];
+}
+
 class DitherDither extends HTMLElement {
   constructor() {
     super();
@@ -107,26 +115,32 @@ class DitherDither extends HTMLElement {
     this.frame = null;
     this.frameVideo = null;
     this.intersecting = false;
+    this.darkColor = [0, 0, 0, 1];
+    this.lightColor = [1, 1, 1, 0];
   }
   static observedAttributes = ["src", "threshold-map", "dark", "light"];
 
-  async attributeChangedCallback(name, oldValue, newValue) {
+  async attributeChangedCallback(name, _, value) {
     if (!this.initialized) return;
     switch (name) {
       case "src":
-        this.mediaSrc = newValue;
+        this.mediaSrc = value;
         await this.initMedia();
         this.resizeCanvas();
         this.draw();
         this.sync();
         break;
       case "threshold-map":
-        this.thresholdSrc = newValue;
+        this.thresholdSrc = value;
         await this.initThreshold();
         this.draw();
         break;
       case "dark":
+        this.darkColor = parseColor(this.canvas.getContext("2d"), value);
+        this.draw();
+        break;
       case "light":
+        this.lightColor = parseColor(this.canvas.getContext("2d"), value);
         this.draw();
         break;
     }
@@ -142,6 +156,10 @@ class DitherDither extends HTMLElement {
     this.initCanvas();
     await Promise.all([this.initMedia(), this.initThreshold()]);
     this.resizeCanvas();
+
+    const ctx = this.canvas.getContext("2d", { willReadFrequently: true });
+    this.darkColor = this.getAttribute("dark") ? parseColor(ctx, this.getAttribute("dark")) : [0, 0, 0, 1];
+    this.lightColor = this.getAttribute("light") ? parseColor(ctx, this.getAttribute("light")) : [1, 1, 1, 1];
 
     this.initObserver();
     if (this.immediate) {
@@ -281,8 +299,8 @@ class DitherDither extends HTMLElement {
 
     gl.uniform2f(locations.resolution, width, height);
     gl.uniform2f(locations.thresholdSize, this.threshold.width, this.threshold.height);
-    gl.uniform3fv(locations.darkColor, [0, 0, 0]);
-    gl.uniform3fv(locations.lightColor, [1, 1, 1]);
+    gl.uniform4fv(locations.darkColor, this.darkColor);
+    gl.uniform4fv(locations.lightColor, this.lightColor);
 
     gl.activeTexture(gl.TEXTURE0);
     uploadTexture(gl, mediaTexture, this.media);
@@ -309,7 +327,7 @@ class DitherDither extends HTMLElement {
   }
 
   start() {
-    if (this.frame !== null) return; // never run two loops
+    if (this.frame !== null) return;
     const video = this.media;
     const tick = () => {
       this.frame = video.requestVideoFrameCallback(tick);
