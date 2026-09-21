@@ -96,6 +96,7 @@ function thresholdTexture(el) {
 function initGL(el) {
   el.initialized = true;
   el.draw();
+  el.sync();
 }
 
 class DitherDither extends HTMLElement {
@@ -109,6 +110,9 @@ class DitherDither extends HTMLElement {
     this.observer = null;
     this.width = 0;
     this.height = 0;
+    this.frame = null;
+    this.frameVideo = null;
+    this.intersecting = false;
   }
   static observedAttributes = ["src", "threshold-map", "dark", "light"];
 
@@ -161,6 +165,12 @@ class DitherDither extends HTMLElement {
     }
   }
 
+  disconnectedCallback() {
+    this.stop();
+    this.destroyObserver();
+    this.media?.pause?.();
+  }
+
   initCanvas() {
     this.canvas = document.createElement("canvas");
     this.canvas.style = "display: block; image-rendering: pixelated;";
@@ -196,6 +206,8 @@ class DitherDither extends HTMLElement {
     );
   }
   async initMedia() {
+    this.stop();
+    this.media?.pause?.();
     this.media = await this.loadMedia(this.mediaSrc, this.isVideo());
     this.width = this.media.videoWidth ?? this.media.width;
     this.height = this.media.videoHeight ?? this.media.height;
@@ -247,12 +259,11 @@ class DitherDither extends HTMLElement {
   }
 
   draw() {
-    if (this.isVideo()) requestAnimationFrame(() => this.draw());
     if (gl.isContextLost()) return;
 
     const { width, height } = this.canvas;
-    sharedCanvas.width = Math.max(sharedCanvas.width, width);
-    sharedCanvas.height = Math.max(sharedCanvas.height, height);
+    if (sharedCanvas.width < width) sharedCanvas.width = width;
+    if (sharedCanvas.height < height) sharedCanvas.height = height;
 
     gl.viewport(0, 0, width, height);
 
@@ -300,15 +311,40 @@ class DitherDither extends HTMLElement {
     this.ctx.drawImage(sharedCanvas, 0, sharedCanvas.height - height, width, height, 0, 0, width, height);
   }
 
+  sync() {
+    if (!this.media) return;
+    if (this.isVideo() && this.intersecting) {
+      this.media.play().catch(() => {});
+      this.start();
+    } else {
+      if (this.isVideo()) this.media.pause();
+      this.stop();
+    }
+  }
+
+  start() {
+    if (this.frame !== null) return; // never run two loops
+    const video = this.media;
+    const tick = () => {
+      this.frame = video.requestVideoFrameCallback(tick);
+      this.draw();
+    };
+    this.frame = video.requestVideoFrameCallback(tick);
+    this.frameVideo = video;
+  }
+
+  stop() {
+    if (this.frame === null) return;
+    this.frameVideo.cancelVideoFrameCallback(this.frame);
+    this.frame = null;
+  }
+
   initObserver() {
-    if (this.immediate) return;
     this.observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          if (!this.immediate && !this.initialized) {
-            initGL(this);
-          }
-        }
+        this.intersecting = entry.isIntersecting;
+        if (entry.isIntersecting && !this.initialized) initGL(this);
+        else this.sync();
       });
     });
     this.observer.observe(this);
