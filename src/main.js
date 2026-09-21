@@ -167,11 +167,6 @@ class DitherDither extends HTMLElement {
       (this.getAttribute("type") == null && ["mp4", "webm", "ogg"].includes(this.mediaSrc.match(/[^.]+$/)[0]))
     );
   }
-  isFrozen() {
-    const freeze = this.getAttribute("freeze");
-    if (freeze != null) return freeze !== "false";
-    return !this.isVideo();
-  }
   async initMedia() {
     this.media = await this.loadMedia(this.mediaSrc, this.isVideo());
     this.width = this.media.videoWidth ?? this.media.width;
@@ -325,28 +320,7 @@ class DitherDither extends HTMLElement {
     };
     this.render();
 
-    if (this.isFrozen()) {
-      this.freezeCanvas();
-    }
-
     this.initialized = true;
-  }
-
-  freezeCanvas() {
-    this.canvas.toBlob((blob) => {
-      this.img = document.createElement("img");
-      this.img.style = "display: block; image-rendering: pixelated;";
-      const url = URL.createObjectURL(blob);
-
-      this.img.onload = () => {
-        URL.revokeObjectURL(url);
-      };
-
-      this.img.src = url;
-      this.removeCanvas();
-      this.root.appendChild(this.img);
-      this.gl.getExtension("WEBGL_lose_context")?.loseContext();
-    });
   }
 
   initObserver() {
@@ -358,7 +332,7 @@ class DitherDither extends HTMLElement {
           if (!this.immediate && !this.initialized) {
             this.initGL();
           }
-          if (this.restore && !this.isFrozen() && this.gl.isContextLost()) {
+          if (this.restore && this.gl.isContextLost()) {
             this.restoreContext();
           }
         }
