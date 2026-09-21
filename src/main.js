@@ -2,21 +2,36 @@ import vs from "./dither.vert?raw";
 import fs from "./dither.frag?raw";
 import thresholdMap from "./BlueNoise.png";
 
-function createShader(gl, type, source) {
+function compile(gl, type, source) {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
-  const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-  if (success) {
-    return shader;
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(log);
   }
-  console.log(gl.getShaderInfoLog(shader));
-  gl.deleteShader(shader);
+
+  return shader;
+}
+
+function createTexture(gl) {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  return texture;
+}
+
+function uploadTexture(gl, texture, image) {
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
 function createProgram(gl, vs, fs) {
-  const vertexShader = createShader(gl, gl.VERTEX_SHADER, vs);
-  const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fs);
+  const vertexShader = compile(gl, gl.VERTEX_SHADER, vs);
+  const fragmentShader = compile(gl, gl.FRAGMENT_SHADER, fs);
   const program = gl.createProgram();
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
@@ -27,21 +42,6 @@ function createProgram(gl, vs, fs) {
   }
   console.log(gl.getProgramInfoLog(program));
   gl.deleteProgram(program);
-}
-
-function createTexture(gl, image) {
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-  return texture;
-}
-
-function updateTexture(gl, texture, image) {
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
 function parseColor(colorString) {
@@ -232,14 +232,16 @@ class DitherDither extends HTMLElement {
     this.canvas = null;
   }
   async initGL() {
-    const gl = (this.gl = this.canvas.getContext("webgl"));
+    const gl = (this.gl = this.canvas.getContext("webgl2"));
     // if (!gl) return;
 
     const program = createProgram(gl, vs, fs);
     gl.useProgram(program);
 
-    const mediaTexture = createTexture(gl, this.media);
-    const thresholdTexture = createTexture(gl, this.threshold);
+    const mediaTexture = createTexture(gl);
+    uploadTexture(gl, mediaTexture, this.media);
+    const thresholdTexture = createTexture(gl);
+    uploadTexture(gl, thresholdTexture, this.threshold);
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
@@ -265,11 +267,7 @@ class DitherDither extends HTMLElement {
 
     const texcoordBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0]),
-      gl.STATIC_DRAW,
-    );
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
 
     const positionLocation = gl.getAttribLocation(program, "a_position");
     const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
@@ -299,7 +297,7 @@ class DitherDither extends HTMLElement {
 
     this.render = () => {
       if (this.isVideo()) {
-        updateTexture(gl, mediaTexture, this.media);
+        uploadTexture(gl, mediaTexture, this.media);
         requestAnimationFrame(this.render);
       }
 
