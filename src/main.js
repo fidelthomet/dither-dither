@@ -93,12 +93,6 @@ function thresholdTexture(el) {
   return thresholdTextures.get(key);
 }
 
-function initGL(el) {
-  el.initialized = true;
-  el.draw();
-  el.sync();
-}
-
 class DitherDither extends HTMLElement {
   constructor() {
     super();
@@ -122,28 +116,18 @@ class DitherDither extends HTMLElement {
       case "src":
         this.mediaSrc = newValue;
         await this.initMedia();
-        this.img?.remove?.();
-        if (!this.canvas) {
-          this.initCanvas();
-        } else this.resizeCanvas();
-        initGL(this);
+        this.resizeCanvas();
+        this.draw();
+        this.sync();
         break;
       case "threshold-map":
         this.thresholdSrc = newValue;
         await this.initThreshold();
-        this.img?.remove?.();
-        if (!this.canvas) {
-          this.initCanvas();
-        }
-        initGL(this);
+        this.draw();
         break;
       case "dark":
       case "light":
-        if (this.initialized) {
-          initGL(this);
-        }
-        break;
-      default:
+        this.draw();
         break;
     }
   }
@@ -161,7 +145,9 @@ class DitherDither extends HTMLElement {
 
     this.initObserver();
     if (this.immediate) {
-      initGL(this);
+      this.initialized = true;
+      this.draw();
+      this.sync();
     }
   }
 
@@ -343,8 +329,13 @@ class DitherDither extends HTMLElement {
     this.observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         this.intersecting = entry.isIntersecting;
-        if (entry.isIntersecting && !this.initialized) initGL(this);
-        else this.sync();
+        if (entry.isIntersecting && !this.initialized) {
+          this.initialized = true;
+          this.draw();
+          this.sync();
+        } else {
+          this.sync();
+        }
       });
     });
     this.observer.observe(this);
