@@ -2,6 +2,8 @@ import vs from "./dither.vert?raw";
 import fs from "./dither.frag?raw";
 import thresholdMap from "./BlueNoise.png";
 
+let locations;
+
 function compile(gl, type, source) {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, source);
@@ -271,31 +273,33 @@ class DitherDither extends HTMLElement {
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
 
-    const positionLocation = gl.getAttribLocation(program, "a_position");
-    const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
-    const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    const imageLocation = gl.getUniformLocation(program, "image");
-    const thresholdLocation = gl.getUniformLocation(program, "threshold");
-    const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
-    const darkColorLocation = gl.getUniformLocation(program, "darkColor");
-    const lightColorLocation = gl.getUniformLocation(program, "lightColor");
+    locations = {
+      position: gl.getAttribLocation(program, "a_position"),
+      texcoord: gl.getAttribLocation(program, "a_texCoord"),
+      resolution: gl.getUniformLocation(program, "u_resolution"),
+      threshold: gl.getUniformLocation(program, "threshold"),
+      thresholdSize: gl.getUniformLocation(program, "resolution"),
+      image: gl.getUniformLocation(program, "image"),
+      darkColor: gl.getUniformLocation(program, "darkColor"),
+      lightColor: gl.getUniformLocation(program, "lightColor"),
+    };
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     gl.useProgram(program);
-    gl.enableVertexAttribArray(positionLocation);
-    gl.enableVertexAttribArray(texcoordLocation);
+    gl.enableVertexAttribArray(locations.position);
+    gl.enableVertexAttribArray(locations.texcoord);
 
-    gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
-    gl.uniform2f(resolutionThresholdLocation, this.threshold.width, this.threshold.height);
+    gl.uniform2f(locations.resolution, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(locations.thresholdSize, this.threshold.width, this.threshold.height);
 
-    gl.uniform1i(imageLocation, 0);
-    gl.uniform1i(thresholdLocation, 1);
+    gl.uniform1i(locations.image, 0);
+    gl.uniform1i(locations.threshold, 1);
 
     const darkColor = this.getAttribute("dark") ? parseColor(this.getAttribute("dark")) : [0.0, 0.0, 0.0];
     const lightColor = this.getAttribute("light") ? parseColor(this.getAttribute("light")) : [1.0, 1.0, 1.0];
 
-    gl.uniform3fv(darkColorLocation, darkColor);
-    gl.uniform3fv(lightColorLocation, lightColor);
+    gl.uniform3fv(locations.darkColor, darkColor);
+    gl.uniform3fv(locations.lightColor, lightColor);
 
     this.render = () => {
       if (this.isVideo()) {
@@ -306,10 +310,10 @@ class DitherDither extends HTMLElement {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-      gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, mediaTexture);
