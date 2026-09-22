@@ -5,6 +5,9 @@ import thresholdMap from "./BlueNoise.png";
 const sharedCanvas = new OffscreenCanvas(1, 1);
 const gl = sharedCanvas.getContext("webgl2");
 
+const colorCanvas = new OffscreenCanvas(1, 1);
+const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true });
+
 let locations, texcoordBuffer, positionBuffer, mediaTexture;
 const thresholdTextures = new Map();
 
@@ -93,11 +96,11 @@ function thresholdTexture(el) {
   return thresholdTextures.get(key);
 }
 
-function parseColor(ctx, color) {
-  ctx.clearRect(0, 0, 1, 1);
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+function parseColor(color) {
+  colorCtx.clearRect(0, 0, 1, 1);
+  colorCtx.fillStyle = color;
+  colorCtx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = colorCtx.getImageData(0, 0, 1, 1).data;
   return [r / 255, g / 255, b / 255, a / 255];
 }
 
@@ -136,11 +139,11 @@ class DitherDither extends HTMLElement {
         this.draw();
         break;
       case "dark":
-        this.darkColor = parseColor(this.canvas.getContext("2d"), value);
+        this.darkColor = parseColor(value);
         this.draw();
         break;
       case "light":
-        this.lightColor = parseColor(this.canvas.getContext("2d"), value);
+        this.lightColor = parseColor(value);
         this.draw();
         break;
     }
@@ -152,14 +155,13 @@ class DitherDither extends HTMLElement {
     this.thresholdSrc = this.getAttribute("threshold-map");
     this.immediate = this.getAttribute("immediate") != null;
 
+    this.darkColor = this.getAttribute("dark") ? parseColor(this.getAttribute("dark")) : [0, 0, 0, 1];
+    this.lightColor = this.getAttribute("light") ? parseColor(this.getAttribute("light")) : [1, 1, 1, 1];
+
     this.root = this.attachShadow({ mode: "closed" });
     this.initCanvas();
     await Promise.all([this.initMedia(), this.initThreshold()]);
     this.resizeCanvas();
-
-    const ctx = this.canvas.getContext("2d", { willReadFrequently: true });
-    this.darkColor = this.getAttribute("dark") ? parseColor(ctx, this.getAttribute("dark")) : [0, 0, 0, 1];
-    this.lightColor = this.getAttribute("light") ? parseColor(ctx, this.getAttribute("light")) : [1, 1, 1, 1];
 
     this.initObserver();
     if (this.immediate) {
