@@ -191,7 +191,6 @@ class DitherDither extends HTMLElement {
     this.canvas.setAttribute("aria-label", this.getAttribute("alt") ?? "");
 
     this.ctx = this.canvas.getContext("2d");
-    this.resizeCanvas();
   }
   isVideo() {
     return (
@@ -216,7 +215,6 @@ class DitherDither extends HTMLElement {
     this.thresholdMap = thresholdMap;
   }
   async resizeCanvas() {
-    if (!this.media) return;
     const mediaWidth = this.media.videoWidth ?? this.media.width;
     const mediaHeight = this.media.videoHeight ?? this.media.height;
 
