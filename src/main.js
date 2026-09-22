@@ -121,12 +121,13 @@ function parseColor(color) {
 class DitherDither extends HTMLElement {
   constructor() {
     super();
+    this.lightColor = [1, 1, 1, 1];
+    this.darkColor = [0, 0, 0, 1];
     this.intersecting = false;
   }
-  static observedAttributes = ["src", "threshold-map", "dark", "light"];
+  static observedAttributes = ["src", "threshold-map", "dark", "light", "width", "height", "object-fit"];
 
   async attributeChangedCallback(name, _, value) {
-    if (!this.initialized) return;
     switch (name) {
       case "src":
         this.mediaSrc = value;
@@ -141,11 +142,26 @@ class DitherDither extends HTMLElement {
         this.draw();
         break;
       case "dark":
-        this.darkColor = parseColor(value);
+        this.darkColor = value ? parseColor(value) : [0, 0, 0, 1];
         this.draw();
         break;
       case "light":
-        this.lightColor = parseColor(value);
+        this.lightColor = value ? parseColor(value) : [1, 1, 1, 1];
+        this.draw();
+        break;
+      case "width":
+        this.width = +value || null;
+        this.resizeCanvas();
+        this.draw();
+        break;
+      case "height":
+        this.height = +value || null;
+        this.resizeCanvas();
+        this.draw();
+        break;
+      case "object-fit":
+        this.objectFit = value || "contain";
+        this.resizeCanvas();
         this.draw();
         break;
     }
@@ -153,12 +169,7 @@ class DitherDither extends HTMLElement {
 
   async connectedCallback() {
     this.crossOrigin = this.getAttribute("cross-origin");
-    this.mediaSrc = this.getAttribute("src");
-    this.thresholdSrc = this.getAttribute("threshold-map");
     this.immediate = this.getAttribute("immediate") != null;
-
-    this.darkColor = this.getAttribute("dark") ? parseColor(this.getAttribute("dark")) : [0, 0, 0, 1];
-    this.lightColor = this.getAttribute("light") ? parseColor(this.getAttribute("light")) : [1, 1, 1, 1];
 
     this.root = this.attachShadow({ mode: "closed" });
     this.initCanvas();
@@ -215,36 +226,33 @@ class DitherDither extends HTMLElement {
     this.thresholdMap = thresholdMap;
   }
   async resizeCanvas() {
+    if (!this.media) return;
     const mediaWidth = this.media.videoWidth ?? this.media.width;
     const mediaHeight = this.media.videoHeight ?? this.media.height;
-
-    const customWidth = this.getAttribute("width") ? parseInt(this.getAttribute("width")) : null;
-    const customHeight = this.getAttribute("height") ? parseInt(this.getAttribute("height")) : null;
-    const ObjectFitType = this.getAttribute("object-fit") || "contain";
 
     const mediaObjectFit = mediaWidth / mediaHeight;
     let canvasWidth, canvasHeight;
 
-    if (customWidth && customHeight) {
-      canvasWidth = customWidth;
-      canvasHeight = customHeight;
-    } else if (customWidth) {
-      canvasWidth = customWidth;
-      canvasHeight = customWidth / mediaObjectFit;
-    } else if (customHeight) {
-      canvasHeight = customHeight;
-      canvasWidth = customHeight * mediaObjectFit;
+    if (this.width && this.height) {
+      canvasWidth = this.width;
+      canvasHeight = this.height;
+    } else if (this.width) {
+      canvasWidth = this.width;
+      canvasHeight = this.width / mediaObjectFit;
+    } else if (this.height) {
+      canvasHeight = this.height;
+      canvasWidth = this.height * mediaObjectFit;
     } else {
       canvasWidth = mediaWidth;
       canvasHeight = mediaHeight;
     }
 
     let renderWidth, renderHeight;
-    if (ObjectFitType === "contain") {
+    if (this.objectFit === "contain") {
       const scale = Math.min(canvasWidth / mediaWidth, canvasHeight / mediaHeight);
       renderWidth = mediaWidth * scale;
       renderHeight = mediaHeight * scale;
-    } else if (ObjectFitType === "cover") {
+    } else if (this.objectFit === "cover") {
       const scale = Math.max(canvasWidth / mediaWidth, canvasHeight / mediaHeight);
       renderWidth = mediaWidth * scale;
       renderHeight = mediaHeight * scale;
@@ -261,7 +269,7 @@ class DitherDither extends HTMLElement {
   }
 
   draw() {
-    if (gl.isContextLost()) return;
+    if (!this.initialized || gl.isContextLost()) return;
 
     const { width, height } = this.canvas;
     if (sharedCanvas.width < width) sharedCanvas.width = width;
