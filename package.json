@@ -1,16 +1,13 @@
 {
-  "name": "@krisenstab/dither-dither",
-  "version": "2.1.0",
+  "name": "dither-dither",
+  "version": "2.0.3",
   "type": "module",
   "files": [
     "dist"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/krisenstab/dither-dither"
-  },
-  "publishConfig": {
-    "access": "public"
+    "url": "https://github.com/fidelthomet/dither-dither"
   },
   "module": "./dist/dither-dither.js",
   "exports": {

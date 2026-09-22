@@ -1,5 +1,8 @@
 # dither-dither
 
+> This package moved to [`@krisenstab/dither-dither`](https://www.npmjs.com/package/@krisenstab/dither-dither).
+> Check the [new repository](https://github.com/krisenstab/dither-dither).
+
 [demo](https://fidelthomet.github.io/dither-dither/)
 
 `npm i dither-dither`
