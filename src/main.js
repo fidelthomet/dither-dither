@@ -121,19 +121,7 @@ function parseColor(color) {
 class DitherDither extends HTMLElement {
   constructor() {
     super();
-    this.root = null;
-    this.canvas = null;
-    this.media = null;
-    this.threshold = null;
-    this.initialized = null;
-    this.observer = null;
-    this.width = 0;
-    this.height = 0;
-    this.frame = null;
-    this.frameVideo = null;
     this.intersecting = false;
-    this.darkColor = null;
-    this.lightColor = null;
   }
   static observedAttributes = ["src", "threshold-map", "dark", "light"];
 
@@ -215,8 +203,6 @@ class DitherDither extends HTMLElement {
     this.stop();
     this.media?.pause?.();
     this.media = await loadMedia(this.mediaSrc, this.isVideo(), this.crossOrigin);
-    this.width = this.media.videoWidth ?? this.media.width;
-    this.height = this.media.videoHeight ?? this.media.height;
   }
   async initThreshold() {
     const src = this.thresholdSrc ?? fallbackThreshold;
@@ -230,11 +216,15 @@ class DitherDither extends HTMLElement {
     this.thresholdMap = thresholdMap;
   }
   async resizeCanvas() {
+    if (!this.media) return;
+    const mediaWidth = this.media.videoWidth ?? this.media.width;
+    const mediaHeight = this.media.videoHeight ?? this.media.height;
+
     const customWidth = this.getAttribute("width") ? parseInt(this.getAttribute("width")) : null;
     const customHeight = this.getAttribute("height") ? parseInt(this.getAttribute("height")) : null;
     const ObjectFitType = this.getAttribute("object-fit") || "contain";
 
-    const mediaObjectFit = this.width / this.height;
+    const mediaObjectFit = mediaWidth / mediaHeight;
     let canvasWidth, canvasHeight;
 
     if (customWidth && customHeight) {
@@ -247,19 +237,19 @@ class DitherDither extends HTMLElement {
       canvasHeight = customHeight;
       canvasWidth = customHeight * mediaObjectFit;
     } else {
-      canvasWidth = this.width;
-      canvasHeight = this.height;
+      canvasWidth = mediaWidth;
+      canvasHeight = mediaHeight;
     }
 
     let renderWidth, renderHeight;
     if (ObjectFitType === "contain") {
-      const scale = Math.min(canvasWidth / this.width, canvasHeight / this.height);
-      renderWidth = this.width * scale;
-      renderHeight = this.height * scale;
+      const scale = Math.min(canvasWidth / mediaWidth, canvasHeight / mediaHeight);
+      renderWidth = mediaWidth * scale;
+      renderHeight = mediaHeight * scale;
     } else if (ObjectFitType === "cover") {
-      const scale = Math.max(canvasWidth / this.width, canvasHeight / this.height);
-      renderWidth = this.width * scale;
-      renderHeight = this.height * scale;
+      const scale = Math.max(canvasWidth / mediaWidth, canvasHeight / mediaHeight);
+      renderWidth = mediaWidth * scale;
+      renderHeight = mediaHeight * scale;
     } else {
       renderWidth = canvasWidth;
       renderHeight = canvasHeight;
@@ -337,7 +327,7 @@ class DitherDither extends HTMLElement {
   }
 
   start() {
-    if (this.frame !== null) return;
+    if (this.frame != null) return;
     const video = this.media;
     const tick = () => {
       this.frame = video.requestVideoFrameCallback(tick);
@@ -348,7 +338,7 @@ class DitherDither extends HTMLElement {
   }
 
   stop() {
-    if (this.frame === null) return;
+    if (this.frame == null) return;
     this.frameVideo.cancelVideoFrameCallback(this.frame);
     this.frame = null;
   }
