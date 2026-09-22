@@ -1,5 +1,5 @@
 {
-  "name": "dither-dither",
+  "name": "@krisenstab/dither-dither",
   "version": "2.0.2",
   "type": "module",
   "files": [
@@ -7,7 +7,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/fidelthomet/dither-dither"
+    "url": "https://github.com/krisenstab/dither-dither"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "module": "./dist/dither-dither.js",
   "exports": {
