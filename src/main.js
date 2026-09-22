@@ -1,6 +1,6 @@
 import vs from "./dither.vert?raw";
 import fs from "./dither.frag?raw";
-import thresholdMap from "./BlueNoise.png";
+import fallbackThreshold from "./BlueNoise.png";
 
 const sharedCanvas = new OffscreenCanvas(1, 1);
 const gl = sharedCanvas.getContext("webgl2");
@@ -9,7 +9,8 @@ const colorCanvas = new OffscreenCanvas(1, 1);
 const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true });
 
 let locations, texcoordBuffer, positionBuffer, mediaTexture;
-let fallbackThresholdTexture, fallbackThresholdMap;
+
+const thresholdCache = new Map();
 
 function compile(type, source) {
   const shader = gl.createShader(type);
@@ -53,6 +54,13 @@ function uploadTexture(texture, image) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
+async function createThresholdTexture(src) {
+  const thresholdTexture = createTexture();
+  const thresholdMap = await loadMedia(src);
+  uploadTexture(thresholdTexture, thresholdMap);
+  thresholdCache.set(src, { thresholdTexture, thresholdMap });
+}
+
 async function initShared() {
   const program = createProgram();
 
@@ -73,9 +81,7 @@ async function initShared() {
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
 
   mediaTexture = createTexture();
-  fallbackThresholdMap = await loadMedia(thresholdMap);
-  fallbackThresholdTexture = createTexture();
-  uploadTexture(fallbackThresholdTexture, fallbackThresholdMap);
+  await createThresholdTexture(fallbackThreshold);
 
   gl.enableVertexAttribArray(locations.position);
   gl.enableVertexAttribArray(locations.texcoord);
@@ -126,8 +132,8 @@ class DitherDither extends HTMLElement {
     this.frame = null;
     this.frameVideo = null;
     this.intersecting = false;
-    this.darkColor = [0, 0, 0, 1];
-    this.lightColor = [1, 1, 1, 0];
+    this.darkColor = null;
+    this.lightColor = null;
   }
   static observedAttributes = ["src", "threshold-map", "dark", "light"];
 
@@ -189,7 +195,8 @@ class DitherDither extends HTMLElement {
 
   initCanvas() {
     this.canvas = document.createElement("canvas");
-    this.canvas.style = "display: block; image-rendering: pixelated;";
+    this.canvas.style.display = "block";
+    this.canvas.style.imageRendering = "pixelated";
     this.root.appendChild(this.canvas);
 
     this.canvas.setAttribute("role", "img");
@@ -212,14 +219,15 @@ class DitherDither extends HTMLElement {
     this.height = this.media.videoHeight ?? this.media.height;
   }
   async initThreshold() {
-    if (this.thresholdSrc != null) {
-      this.threshold = createTexture();
-      this.thresholdMap = await loadMedia(this.thresholdSrc);
-      uploadTexture(this.threshold, await loadMedia(this.thresholdSrc));
-    } else {
-      this.thresholdMap = fallbackThresholdMap;
-      this.threshold = fallbackThresholdTexture;
+    const src = this.thresholdSrc ?? fallbackThreshold;
+
+    if (!thresholdCache.has(src)) {
+      await createThresholdTexture(src);
     }
+
+    const { thresholdTexture, thresholdMap } = thresholdCache.get(src);
+    this.threshold = thresholdTexture;
+    this.thresholdMap = thresholdMap;
   }
   async resizeCanvas() {
     const customWidth = this.getAttribute("width") ? parseInt(this.getAttribute("width")) : null;
