@@ -1,156 +1,261 @@
 import vs from "./dither.vert?raw";
 import fs from "./dither.frag?raw";
-import thresholdMap from "./BlueNoise.png";
+import fallbackThreshold from "./BlueNoise.png";
+
+const sharedCanvas = new OffscreenCanvas(1, 1);
+const gl = sharedCanvas.getContext("webgl2");
+
+const colorCanvas = new OffscreenCanvas(1, 1);
+const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true });
+
+let locations, texcoordBuffer, positionBuffer, mediaTexture;
+
+const thresholdCache = new Map();
+
+function compile(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error(log);
+  }
+  return shader;
+}
+
+function createProgram() {
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(program);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const log = gl.getProgramInfoLog(program);
+    gl.deleteProgram(program);
+    throw new Error(log);
+  }
+
+  gl.useProgram(program);
+  return program;
+}
+
+function createTexture() {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  return texture;
+}
+
+function uploadTexture(texture, image) {
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+}
+
+async function createThresholdTexture(src) {
+  const thresholdTexture = createTexture();
+  const thresholdMap = await loadMedia(src);
+  uploadTexture(thresholdTexture, thresholdMap);
+  thresholdCache.set(src, { thresholdTexture, thresholdMap });
+}
+
+async function initShared() {
+  const program = createProgram();
+
+  locations = {
+    position: gl.getAttribLocation(program, "a_position"),
+    texcoord: gl.getAttribLocation(program, "a_texCoord"),
+    resolution: gl.getUniformLocation(program, "u_resolution"),
+    threshold: gl.getUniformLocation(program, "threshold"),
+    thresholdSize: gl.getUniformLocation(program, "resolution"),
+    image: gl.getUniformLocation(program, "image"),
+    darkColor: gl.getUniformLocation(program, "darkColor"),
+    lightColor: gl.getUniformLocation(program, "lightColor"),
+  };
+
+  positionBuffer = gl.createBuffer();
+  texcoordBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
+
+  mediaTexture = createTexture();
+  await createThresholdTexture(fallbackThreshold);
+
+  gl.enableVertexAttribArray(locations.position);
+  gl.enableVertexAttribArray(locations.texcoord);
+  gl.uniform1i(locations.image, 0);
+  gl.uniform1i(locations.threshold, 1);
+}
+
+await initShared();
+sharedCanvas.addEventListener("webglcontextlost", (e) => e.preventDefault());
+sharedCanvas.addEventListener("webglcontextrestored", initShared);
+
+function loadMedia(url, isVideo, crossOrigin) {
+  return new Promise((resolve) => {
+    const el = isVideo ? document.createElement("video") : new Image();
+    el.src = url;
+    el.crossOrigin = crossOrigin;
+    if (isVideo) {
+      el.playsInline = true;
+      el.muted = true;
+      el.loop = true;
+      el.play();
+      el.addEventListener("playing", () => resolve(el), { once: true });
+    } else {
+      el.addEventListener("load", () => resolve(el), { once: true });
+    }
+  });
+}
+
+function parseColor(color) {
+  colorCtx.clearRect(0, 0, 1, 1);
+  colorCtx.fillStyle = color;
+  colorCtx.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = colorCtx.getImageData(0, 0, 1, 1).data;
+  return [r / 255, g / 255, b / 255, a / 255];
+}
 
 class DitherDither extends HTMLElement {
   constructor() {
     super();
-    this.root = null;
-    this.canvas = null;
-    this.media = null;
-    this.threshold = null;
-    this.initialized = null;
-    this.gl = null;
-    this.observer = null;
-    this.width = 0;
-    this.height = 0;
-    this.restore = true;
+    this.lightColor = [1, 1, 1, 1];
+    this.darkColor = [0, 0, 0, 1];
     this.intersecting = false;
-    this.lastRestore = 0;
   }
-  static observedAttributes = ["src", "threshold-map", "dark", "light"];
+  static observedAttributes = ["src", "threshold-map", "dark", "light", "width", "height", "object-fit"];
 
-  async attributeChangedCallback(name, oldValue, newValue) {
-    if (!this.initialized) return;
+  async attributeChangedCallback(name, _, value) {
     switch (name) {
       case "src":
-        this.mediaSrc = newValue;
+        this.mediaSrc = value;
         await this.initMedia();
-        this.img?.remove?.();
-        if (!this.canvas) {
-          this.initCanvas();
-        } else this.resizeCanvas();
-        this.initGL();
+        this.resizeCanvas();
+        this.draw();
+        this.sync();
         break;
       case "threshold-map":
-        this.thresholdSrc = newValue;
+        this.thresholdSrc = value;
         await this.initThreshold();
-        this.img?.remove?.();
-        if (!this.canvas) {
-          this.initCanvas();
-        }
-        this.initGL();
+        this.draw();
         break;
       case "dark":
-      case "light":
-        if (this.initialized) {
-          this.initGL();
-        }
+        this.darkColor = value ? parseColor(value) : [0, 0, 0, 1];
+        this.draw();
         break;
-      default:
+      case "light":
+        this.lightColor = value ? parseColor(value) : [1, 1, 1, 1];
+        this.draw();
+        break;
+      case "width":
+        this.width = +value || null;
+        this.resizeCanvas();
+        this.draw();
+        break;
+      case "height":
+        this.height = +value || null;
+        this.resizeCanvas();
+        this.draw();
+        break;
+      case "object-fit":
+        this.objectFit = value || "contain";
+        this.resizeCanvas();
+        this.draw();
         break;
     }
   }
 
   async connectedCallback() {
     this.crossOrigin = this.getAttribute("cross-origin");
-    this.mediaSrc = this.getAttribute("src");
-    this.thresholdSrc = this.getAttribute("threshold-map");
     this.immediate = this.getAttribute("immediate") != null;
-    this.restore = this.getAttribute("restore") !== "false";
 
     this.root = this.attachShadow({ mode: "closed" });
     this.initCanvas();
-    await Promise.all([this.initMedia(), this.initThreshold()]);
-    this.resizeCanvas();
 
+    await Promise.all([this.initMedia(), this.initThreshold()]);
+
+    this.resizeCanvas();
     this.initObserver();
+
     if (this.immediate) {
-      this.initGL();
+      this.initialized = true;
+      this.draw();
+      this.sync();
     }
+  }
+
+  disconnectedCallback() {
+    this.stop();
+    this.destroyObserver();
+    this.media?.pause?.();
   }
 
   initCanvas() {
     this.canvas = document.createElement("canvas");
-    this.canvas.style = "display: block; image-rendering: pixelated;";
+    this.canvas.style.display = "block";
+    this.canvas.style.imageRendering = "pixelated";
     this.root.appendChild(this.canvas);
 
     this.canvas.setAttribute("role", "img");
-    this.canvas.setAttribute("aria-label", this.getAttribute("alt"));
+    this.canvas.setAttribute("aria-label", this.getAttribute("alt") ?? "");
 
-    this.resizeCanvas();
-  }
-
-  loadMedia(url, isVideo) {
-    return new Promise((resolve) => {
-      const el = isVideo ? document.createElement("video") : new Image();
-      el.src = url;
-      el.crossOrigin = this.crossOrigin;
-      if (isVideo) {
-        el.playsInline = true;
-        el.muted = true;
-        el.loop = true;
-        el.play();
-        el.addEventListener("playing", () => resolve(el), { once: true });
-      } else {
-        el.addEventListener("load", () => resolve(el), { once: true });
-      }
-    });
+    this.ctx = this.canvas.getContext("2d");
   }
   isVideo() {
     return (
       this.getAttribute("type") === "video" ||
-      (this.getAttribute("type") == null &&
-        ["mp4", "webm", "ogg"].includes(this.mediaSrc.match(/[^.]+$/)[0]))
+      (this.getAttribute("type") == null && ["mp4", "webm", "ogg"].includes(this.mediaSrc.match(/[^.]+$/)[0]))
     );
   }
-  isFrozen() {
-    const freeze = this.getAttribute("freeze");
-    if (freeze != null) return freeze !== "false";
-    return !this.isVideo();
-  }
   async initMedia() {
-    this.media = await this.loadMedia(this.mediaSrc, this.isVideo());
-    this.width = this.media.videoWidth ?? this.media.width;
-    this.height = this.media.videoHeight ?? this.media.height;
+    this.stop();
+    this.media?.pause?.();
+    this.media = await loadMedia(this.mediaSrc, this.isVideo(), this.crossOrigin);
   }
   async initThreshold() {
-    this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
+    const src = this.thresholdSrc ?? fallbackThreshold;
+
+    if (!thresholdCache.has(src)) {
+      await createThresholdTexture(src);
+    }
+
+    const { thresholdTexture, thresholdMap } = thresholdCache.get(src);
+    this.threshold = thresholdTexture;
+    this.thresholdMap = thresholdMap;
   }
   async resizeCanvas() {
-    const customWidth = this.getAttribute("width") ? parseInt(this.getAttribute("width")) : null;
-    const customHeight = this.getAttribute("height") ? parseInt(this.getAttribute("height")) : null;
-    const ObjectFitType = this.getAttribute("object-fit") || "contain";
+    if (!this.media) return;
+    const mediaWidth = this.media.videoWidth ?? this.media.width;
+    const mediaHeight = this.media.videoHeight ?? this.media.height;
 
-    const mediaObjectFit = this.width / this.height;
+    const mediaObjectFit = mediaWidth / mediaHeight;
     let canvasWidth, canvasHeight;
 
-    if (customWidth && customHeight) {
-      canvasWidth = customWidth;
-      canvasHeight = customHeight;
-    }
-    else if (customWidth) {
-      canvasWidth = customWidth;
-      canvasHeight = customWidth / mediaObjectFit;
-    }
-    else if (customHeight) {
-      canvasHeight = customHeight;
-      canvasWidth = customHeight * mediaObjectFit;
-    }
-    else {
+    if (this.width && this.height) {
       canvasWidth = this.width;
       canvasHeight = this.height;
+    } else if (this.width) {
+      canvasWidth = this.width;
+      canvasHeight = this.width / mediaObjectFit;
+    } else if (this.height) {
+      canvasHeight = this.height;
+      canvasWidth = this.height * mediaObjectFit;
+    } else {
+      canvasWidth = mediaWidth;
+      canvasHeight = mediaHeight;
     }
 
     let renderWidth, renderHeight;
-    if (ObjectFitType === "contain") {
-      const scale = Math.min(canvasWidth / this.width, canvasHeight / this.height);
-      renderWidth = this.width * scale;
-      renderHeight = this.height * scale;
-    } else if (ObjectFitType === "cover") {
-      const scale = Math.max(canvasWidth / this.width, canvasHeight / this.height);
-      renderWidth = this.width * scale;
-      renderHeight = this.height * scale;
+    if (this.objectFit === "contain") {
+      const scale = Math.min(canvasWidth / mediaWidth, canvasHeight / mediaHeight);
+      renderWidth = mediaWidth * scale;
+      renderHeight = mediaHeight * scale;
+    } else if (this.objectFit === "cover") {
+      const scale = Math.max(canvasWidth / mediaWidth, canvasHeight / mediaHeight);
+      renderWidth = mediaWidth * scale;
+      renderHeight = mediaHeight * scale;
     } else {
       renderWidth = canvasWidth;
       renderHeight = canvasHeight;
@@ -163,192 +268,96 @@ class DitherDither extends HTMLElement {
     this.renderHeight = renderHeight;
   }
 
-  restoreContext() {
-    if (!this.gl.isContextLost()) return;
-    const time = new Date().getTime();
-    if (this.lastRestore + 750 > time) return;
-    this.lastRestore = time;
-    this.removeCanvas();
-    this.initCanvas();
-    this.initGL();
-  }
-  removeCanvas() {
-    this.canvas.remove();
-    this.canvas = null;
-  }
-  async initGL() {
-    const gl = (this.gl = this.canvas.getContext("webgl"));
-    // if (!gl) return;
+  draw() {
+    if (!this.initialized || gl.isContextLost()) return;
 
-    const program = createProgram(gl, vs, fs);
-    gl.useProgram(program);
+    const { width, height } = this.canvas;
+    if (sharedCanvas.width < width) sharedCanvas.width = width;
+    if (sharedCanvas.height < height) sharedCanvas.height = height;
 
-    const mediaTexture = createTexture(gl, this.media);
-    const thresholdTexture = createTexture(gl, this.threshold);
-    const positionBuffer = gl.createBuffer();
+    gl.viewport(0, 0, width, height);
+
+    const xOffset = (this.renderWidth - width) / 2;
+    const yOffset = (this.renderHeight - height) / 2;
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    const xOffset = (this.renderWidth - this.canvas.width) / 2.0;
-    const yOffset = (this.renderHeight - this.canvas.height) / 2.0;
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array([
-        -xOffset, -yOffset,
-        this.renderWidth - xOffset, -yOffset,
-        -xOffset, this.renderHeight - yOffset,
-        -xOffset, this.renderHeight - yOffset,
-        this.renderWidth - xOffset, -yOffset,
-        this.renderWidth - xOffset, this.renderHeight - yOffset
+        -xOffset,
+        -yOffset,
+        this.renderWidth - xOffset,
+        -yOffset,
+        -xOffset,
+        this.renderHeight - yOffset,
+        -xOffset,
+        this.renderHeight - yOffset,
+        this.renderWidth - xOffset,
+        -yOffset,
+        this.renderWidth - xOffset,
+        this.renderHeight - yOffset,
       ]),
-      gl.STATIC_DRAW
+      gl.DYNAMIC_DRAW,
     );
 
-    const texcoordBuffer = gl.createBuffer();
+    gl.vertexAttribPointer(locations.position, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([
-        0.0, 0.0,
-        1.0, 0.0,
-        0.0, 1.0,
-        0.0, 1.0,
-        1.0, 0.0,
-        1.0, 1.0
-      ]),
-      gl.STATIC_DRAW
-    );
+    gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
-    const positionLocation = gl.getAttribLocation(program, "a_position");
-    const texcoordLocation = gl.getAttribLocation(program, "a_texCoord");
-    const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
-    const imageLocation = gl.getUniformLocation(program, "image");
-    const thresholdLocation = gl.getUniformLocation(program, "threshold");
-    const resolutionThresholdLocation = gl.getUniformLocation(program, "resolution");
-    const darkColorLocation = gl.getUniformLocation(program, "darkColor");
-    const lightColorLocation = gl.getUniformLocation(program, "lightColor");
+    gl.uniform2f(locations.resolution, width, height);
+    gl.uniform2f(locations.thresholdSize, this.thresholdMap.width, this.thresholdMap.height);
+    gl.uniform4fv(locations.darkColor, this.darkColor);
+    gl.uniform4fv(locations.lightColor, this.lightColor);
 
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.useProgram(program);
-    gl.enableVertexAttribArray(positionLocation);
-    gl.enableVertexAttribArray(texcoordLocation);
+    gl.activeTexture(gl.TEXTURE0);
+    uploadTexture(mediaTexture, this.media);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.threshold);
 
-    gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
-    gl.uniform2f(resolutionThresholdLocation, this.threshold.width, this.threshold.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-    gl.uniform1i(imageLocation, 0);
-    gl.uniform1i(thresholdLocation, 1);
-
-    const darkColor = this.getAttribute("dark")
-      ? parseColor(this.getAttribute("dark"))
-      : [0.0, 0.0, 0.0];
-    const lightColor = this.getAttribute("light")
-      ? parseColor(this.getAttribute("light"))
-      : [1.0, 1.0, 1.0];
-
-    gl.uniform3fv(darkColorLocation, darkColor);
-    gl.uniform3fv(lightColorLocation, lightColor);
-
-    function createShader(gl, type, source) {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-      if (success) {
-        return shader;
-      }
-      console.log(gl.getShaderInfoLog(shader));
-      gl.deleteShader(shader);
-    }
-
-    function createProgram(gl, vs, fs) {
-      const vertexShader = createShader(gl, gl.VERTEX_SHADER, vs);
-      const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fs);
-      const program = gl.createProgram();
-      gl.attachShader(program, vertexShader);
-      gl.attachShader(program, fragmentShader);
-      gl.linkProgram(program);
-      const success = gl.getProgramParameter(program, gl.LINK_STATUS);
-      if (success) {
-        return program;
-      }
-      console.log(gl.getProgramInfoLog(program));
-      gl.deleteProgram(program);
-    }
-
-    function createTexture(gl, image) {
-      const texture = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-      return texture;
-    }
-
-    function updateTexture(gl, texture, image) {
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-    }
-
-    this.render = () => {
-      if (this.isVideo()) {
-        updateTexture(gl, mediaTexture, this.media);
-        requestAnimationFrame(this.render);
-      }
-
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, texcoordBuffer);
-      gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
-
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, mediaTexture);
-      gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, thresholdTexture);
-
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    };
-    this.render();
-
-    if (this.isFrozen()) {
-      this.freezeCanvas();
-    }
-
-    this.initialized = true;
+    this.ctx.clearRect(0, 0, width, height);
+    this.ctx.drawImage(sharedCanvas, 0, sharedCanvas.height - height, width, height, 0, 0, width, height);
   }
 
-  freezeCanvas() {
-    this.canvas.toBlob((blob) => {
-      this.img = document.createElement("img");
-      this.img.style = "display: block; image-rendering: pixelated;";
-      const url = URL.createObjectURL(blob);
+  sync() {
+    if (!this.media) return;
+    if (this.isVideo() && this.intersecting) {
+      this.media.play().catch(() => {});
+      this.start();
+    } else {
+      if (this.isVideo()) this.media.pause();
+      this.stop();
+    }
+  }
 
-      this.img.onload = () => {
-        URL.revokeObjectURL(url);
-      };
+  start() {
+    if (this.frame != null) return;
+    const video = this.media;
+    const tick = () => {
+      this.frame = video.requestVideoFrameCallback(tick);
+      this.draw();
+    };
+    this.frame = video.requestVideoFrameCallback(tick);
+    this.frameVideo = video;
+  }
 
-      this.img.src = url;
-      this.removeCanvas();
-      this.root.appendChild(this.img);
-      this.gl.getExtension("WEBGL_lose_context")?.loseContext();
-    });
+  stop() {
+    if (this.frame == null) return;
+    this.frameVideo.cancelVideoFrameCallback(this.frame);
+    this.frame = null;
   }
 
   initObserver() {
-    if (this.immediate || !this.restore) return;
     this.observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         this.intersecting = entry.isIntersecting;
-        if (entry.isIntersecting) {
-          if (!this.immediate && !this.initialized) {
-            this.initGL();
-          }
-          if (this.restore && !this.isFrozen() && this.gl.isContextLost()) {
-            this.restoreContext();
-          }
+        if (entry.isIntersecting && !this.initialized) {
+          this.initialized = true;
+          this.draw();
         }
+        this.sync();
       });
     });
     this.observer.observe(this);
@@ -357,24 +366,6 @@ class DitherDither extends HTMLElement {
   destroyObserver() {
     if (this.observer?.unobserve) this.observer.unobserve(this);
   }
-}
-function parseColor(colorString) {
-  if (colorString.startsWith("#")) {
-    let hex = colorString.slice(1);
-    if (hex.length === 3) {
-      hex = hex.split("").map(c => c + c).join("");
-    }
-    const bigint = parseInt(hex, 16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return [r / 255, g / 255, b / 255];
-  }
-
-  if (colorString.includes(",")) {
-    return colorString.split(",").map(Number);
-  }
-  return [0.0, 0.0, 0.0];
 }
 
 customElements.define("dither-dither", DitherDither);

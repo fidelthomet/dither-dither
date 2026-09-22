@@ -1,56 +1,93 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dithering</title>
+    <script type="module" src="/src/main.js"></script>
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dithering</title>
-  <script type="module" src="/src/main.js"></script>
-</head>
+  <body>
+    <h1>dithering</h1>
+    <h2>image</h2>
+    <div>
+      <img src="./hermannstrasse.jpg" />
+      <dither-dither src="./hermannstrasse.jpg"></dither-dither>
+    </div>
+    <h2>video</h2>
+    <div>
+      <video src="./hermannstrasse.mp4" muted autoplay loop></video>
+      <dither-dither src="./hermannstrasse.mp4" video></dither-dither>
+    </div>
+    <h2>Custom color</h2>
+    <div>
+      <dither-dither src="./hermannstrasse.jpg" dark="rgba(0,0,255, 0.5)" light="transparent"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" light="rgb(0,0,255)"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" dark="rgb(255,0,0)" light="rgb(0,0,255)"></dither-dither>
+    </div>
+    <div>
+      <dither-dither src="./hermannstrasse.mp4" dark="#978893"></dither-dither>
+      <dither-dither src="./hermannstrasse.mp4" light="#978893"></dither-dither>
+      <dither-dither src="./hermannstrasse.mp4" dark="#889a97" light="#978893"></dither-dither>
+    </div>
 
-<body>
-  <h1>dithering</h1>
-  <h2>image</h2>
-  <div>
-    <img src="./hermannstrasse.jpg" />
-    <dither-dither src="./hermannstrasse.jpg"></dither-dither>
-  </div>
-  <h2>video</h2>
-  <div>
-    <video src="./hermannstrasse.mp4" muted autoplay loop></video>
-    <dither-dither src="./hermannstrasse.mp4" video></dither-dither>
-  </div>
-  <h2>Custom color</h2>
-  <div>
-    <dither-dither src="./hermannstrasse.jpg" dark="0,0,255"></dither-dither>
-    <dither-dither src="./hermannstrasse.jpg" light="0,0,255"></dither-dither>
-    <dither-dither src="./hermannstrasse.jpg" dark="255,0,0" light="0,0,255"></dither-dither>
-  </div>
-  <div>
-    <dither-dither src="./hermannstrasse.mp4" dark="#978893"></dither-dither>
-    <dither-dither src="./hermannstrasse.mp4" light="#978893"></dither-dither>
-    <dither-dither src="./hermannstrasse.mp4" dark="#889a97" light="#978893"></dither-dither>
-  </div>
+    <h2>Custom size & object fit</h2>
+    <div>
+      <dither-dither src="./hermannstrasse.jpg" width="150"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" height="250"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="150" height="250"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="contain"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="cover"></dither-dither>
+    </div>
 
-  <h2>Custom size & object fit</h2>
-  <div>
-    <dither-dither src="./hermannstrasse.jpg" width="150"></dither-dither>
-    <dither-dither src="./hermannstrasse.jpg" height="250"></dither-dither>
-    <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="contain"></dither-dither>
-    <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="cover"></dither-dither>
-  </div>
-
-  <h2>Custom threshold map</h2>
-  <div>
-    <img src="./hermannstrasse.jpg" />
-    <dither-dither src="./hermannstrasse.jpg" threshold-map="./bayer8x8.png" lazy></dither-dither>
-  </div>
-</body>
-<style>
-  div {
-    display: flex;
-    gap: 10px;
-  }
-</style>
-
+    <h2>Custom threshold map</h2>
+    <div>
+      <img src="./hermannstrasse.jpg" />
+      <dither-dither src="./hermannstrasse.jpg" threshold-map="./bayer8x8.png" lazy></dither-dither>
+    </div>
+    <div style="display: flex">
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
+    </div>
+  </body>
+  <style>
+    div {
+      display: flex;
+      gap: 10px;
+    }
+  </style>
 </html>
