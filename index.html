@@ -3,91 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dithering</title>
+    <title>dither-dither</title>
+    <link rel="stylesheet" href="/src/style.css" />
     <script type="module" src="/src/main.js"></script>
   </head>
 
   <body>
-    <h1>dithering</h1>
-    <h2>image</h2>
-    <div>
-      <img src="./hermannstrasse.jpg" />
-      <dither-dither src="./hermannstrasse.jpg"></dither-dither>
-    </div>
-    <h2>video</h2>
-    <div>
-      <video src="./hermannstrasse.mp4" muted autoplay loop></video>
-      <dither-dither src="./hermannstrasse.mp4" video></dither-dither>
-    </div>
-    <h2>Custom color</h2>
-    <div>
-      <dither-dither src="./hermannstrasse.jpg" dark="rgba(0,0,255, 0.5)" light="transparent"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" light="rgb(0,0,255)"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" dark="rgb(255,0,0)" light="rgb(0,0,255)"></dither-dither>
-    </div>
-    <div>
-      <dither-dither src="./hermannstrasse.mp4" dark="#978893"></dither-dither>
-      <dither-dither src="./hermannstrasse.mp4" light="#978893"></dither-dither>
-      <dither-dither src="./hermannstrasse.mp4" dark="#889a97" light="#978893"></dither-dither>
-    </div>
+    <section class="hero" id="stage">
+      <div class="hero-sticky">
+        <h1 class="bg-title">dither-dither</h1>
+        <div class="videos">
+          <div class="video" data-dark="90,20,60" data-light="255,210,60">
+            <dither-dither
+              src="./hermannstrasse.mp4"
+              video
+              immediate
+              freeze="false"
+              width="60"
+              threshold-map="./bayer8x8.png"
+            ></dither-dither>
+          </div>
+          <div class="video" data-dark="20,20,90" data-light="255,145,55">
+            <dither-dither
+              src="./hermannstrasse.mp4"
+              video
+              immediate
+              freeze="false"
+              width="60"
+            ></dither-dither>
+          </div>
+          <div class="video" data-dark="15,70,40" data-light="220,80,210">
+            <dither-dither
+              src="./hermannstrasse.mp4"
+              video
+              immediate
+              freeze="false"
+              width="60"
+              threshold-map="./lines8.png"
+            ></dither-dither>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <h2>Custom size & object fit</h2>
-    <div>
-      <dither-dither src="./hermannstrasse.jpg" width="150"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" height="250"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="150" height="250"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="contain"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="150" height="500" object-fit="cover"></dither-dither>
-    </div>
+    <p class="scroll-hint" id="scrollHint">↓</p>
 
-    <h2>Custom threshold map</h2>
-    <div>
-      <img src="./hermannstrasse.jpg" />
-      <dither-dither src="./hermannstrasse.jpg" threshold-map="./bayer8x8.png" lazy></dither-dither>
-    </div>
-    <div style="display: flex">
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-      <dither-dither src="./hermannstrasse.jpg" width="50"></dither-dither>
-    </div>
+    <section class="outro">
+      <h1>dither-dither</h1>
+
+      <p>
+        This is a web component for monochrome dithering. It works on images and
+        videos. It's based on shaders and should be quite fast. It uses a blue
+        noise threshold map. But you can also specify a custom threshold map.
+      </p>
+
+      <p>
+        It works with small media files – in most cases you'll get away with
+        using
+        <a href="/hermannstrasse.jpg">images</a>
+        and <a href="/hermannstrasse.mp4">videos</a> of atrocious quality
+      </p>
+
+      <pre><code>npm i @krisenstab/dither-dither</code></pre>
+      <pre><code>import 'dither-dither'</code></pre>
+      <pre><code>&lt;dither-dither src="…"&gt;&lt;/dither-dither&gt;</code></pre>
+
+      <p style="text-align: center; margin-bottom: 2rem; margin-top: 5rem">
+        <a href="https://github.com/fidelthomet/dither-dither"
+          >source on github</a
+        >
+      </p>
+    </section>
+
+    <script type="module" src="/src/script.js"></script>
   </body>
-  <style>
-    div {
-      display: flex;
-      gap: 10px;
-    }
-  </style>
 </html>
