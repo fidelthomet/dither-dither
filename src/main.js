@@ -73,7 +73,6 @@ async function initShared() {
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
 
   mediaTexture = createTexture();
-
   fallbackThresholdMap = await loadMedia(thresholdMap);
   fallbackThresholdTexture = createTexture();
   uploadTexture(fallbackThresholdTexture, fallbackThresholdMap);
@@ -169,10 +168,12 @@ class DitherDither extends HTMLElement {
 
     this.root = this.attachShadow({ mode: "closed" });
     this.initCanvas();
-    await Promise.all([this.initMedia(), this.initThreshold()]);
-    this.resizeCanvas();
 
+    await Promise.all([this.initMedia(), this.initThreshold()]);
+
+    this.resizeCanvas();
     this.initObserver();
+
     if (this.immediate) {
       this.initialized = true;
       this.draw();
@@ -192,7 +193,7 @@ class DitherDither extends HTMLElement {
     this.root.appendChild(this.canvas);
 
     this.canvas.setAttribute("role", "img");
-    this.canvas.setAttribute("aria-label", this.getAttribute("alt"));
+    this.canvas.setAttribute("aria-label", this.getAttribute("alt") ?? "");
 
     this.ctx = this.canvas.getContext("2d");
     this.resizeCanvas();
@@ -351,10 +352,8 @@ class DitherDither extends HTMLElement {
         if (entry.isIntersecting && !this.initialized) {
           this.initialized = true;
           this.draw();
-          this.sync();
-        } else {
-          this.sync();
         }
+        this.sync();
       });
     });
     this.observer.observe(this);
