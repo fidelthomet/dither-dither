@@ -1,10 +1,10 @@
 # dither-dither
 
-[demo](https://fidelthomet.github.io/dither-dither/)
+[demo](https://thometnanni.github.io/dither-dither/)
 
-`npm i dither-dither`
+`npm i @krisenstab/dither-dither`
 
-`import 'dither-dither'`
+`import '@krisenstab/dither-dither'`
 
 `<dither-dither src="…"></dither-dither>`
 
@@ -15,27 +15,27 @@ This is a web component for monochrome dithering. It works on images and videos.
 ## Why?
 
 - looks nice
-- small media files – in most cases you'll get away with using [images](https://github.com/fidelthomet/dither-dither/blob/main/public/hermannstrasse.jpg) and [videos](https://github.com/fidelthomet/dither-dither/blob/main/public/hermannstrasse.mp4) of atrocious quality
+- small media files – in most cases you'll get away with using [images](https://github.com/thometnanni/dither-dither/blob/main/public/hermannstrasse.jpg) and [videos](https://github.com/thometnanni/dither-dither/blob/main/public/hermannstrasse.mp4) of atrocious quality
 
 ## How?
 
 install the package through npm
 
 ```sh
-npm i dither-dither
+npm i @krisenstab/dither-dither
 ```
 
 import in javascript…
 
 ```js
-import "dither-dither";
+import "@krisenstab/dither-dither";
 ```
 
 …or directly in your html file
 
 ```html
 <script type="module">
-  import "dither-dither";
+  import "@krisenstab/dither-dither";
 </script>
 ```
 
