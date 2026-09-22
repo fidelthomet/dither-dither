@@ -9,7 +9,7 @@ const colorCanvas = new OffscreenCanvas(1, 1);
 const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true });
 
 let locations, texcoordBuffer, positionBuffer, mediaTexture;
-const thresholdTextures = new Map();
+let fallbackThresholdTexture, fallbackThresholdMap;
 
 function compile(type, source) {
   const shader = gl.createShader(type);
@@ -48,12 +48,12 @@ function createTexture() {
   return texture;
 }
 
-function uploadTexture(gl, texture, image) {
+function uploadTexture(texture, image) {
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
 }
 
-function initShared() {
+async function initShared() {
   const program = createProgram();
 
   locations = {
@@ -73,7 +73,10 @@ function initShared() {
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
 
   mediaTexture = createTexture();
-  thresholdTextures.clear();
+
+  fallbackThresholdMap = await loadMedia(thresholdMap);
+  fallbackThresholdTexture = createTexture();
+  uploadTexture(fallbackThresholdTexture, fallbackThresholdMap);
 
   gl.enableVertexAttribArray(locations.position);
   gl.enableVertexAttribArray(locations.texcoord);
@@ -81,19 +84,25 @@ function initShared() {
   gl.uniform1i(locations.threshold, 1);
 }
 
-initShared();
-
+await initShared();
 sharedCanvas.addEventListener("webglcontextlost", (e) => e.preventDefault());
 sharedCanvas.addEventListener("webglcontextrestored", initShared);
 
-function thresholdTexture(el) {
-  const key = el.thresholdSrc ?? thresholdMap;
-  if (!thresholdTextures.has(key)) {
-    const texture = createTexture(gl);
-    uploadTexture(gl, texture, el.threshold);
-    thresholdTextures.set(key, texture);
-  }
-  return thresholdTextures.get(key);
+function loadMedia(url, isVideo, crossOrigin) {
+  return new Promise((resolve) => {
+    const el = isVideo ? document.createElement("video") : new Image();
+    el.src = url;
+    el.crossOrigin = crossOrigin;
+    if (isVideo) {
+      el.playsInline = true;
+      el.muted = true;
+      el.loop = true;
+      el.play();
+      el.addEventListener("playing", () => resolve(el), { once: true });
+    } else {
+      el.addEventListener("load", () => resolve(el), { once: true });
+    }
+  });
 }
 
 function parseColor(color) {
@@ -188,23 +197,6 @@ class DitherDither extends HTMLElement {
     this.ctx = this.canvas.getContext("2d");
     this.resizeCanvas();
   }
-
-  loadMedia(url, isVideo) {
-    return new Promise((resolve) => {
-      const el = isVideo ? document.createElement("video") : new Image();
-      el.src = url;
-      el.crossOrigin = this.crossOrigin;
-      if (isVideo) {
-        el.playsInline = true;
-        el.muted = true;
-        el.loop = true;
-        el.play();
-        el.addEventListener("playing", () => resolve(el), { once: true });
-      } else {
-        el.addEventListener("load", () => resolve(el), { once: true });
-      }
-    });
-  }
   isVideo() {
     return (
       this.getAttribute("type") === "video" ||
@@ -214,12 +206,19 @@ class DitherDither extends HTMLElement {
   async initMedia() {
     this.stop();
     this.media?.pause?.();
-    this.media = await this.loadMedia(this.mediaSrc, this.isVideo());
+    this.media = await loadMedia(this.mediaSrc, this.isVideo(), this.crossOrigin);
     this.width = this.media.videoWidth ?? this.media.width;
     this.height = this.media.videoHeight ?? this.media.height;
   }
   async initThreshold() {
-    this.threshold = await this.loadMedia(this.thresholdSrc ?? thresholdMap);
+    if (this.thresholdSrc != null) {
+      this.threshold = createTexture();
+      this.thresholdMap = await loadMedia(this.thresholdSrc);
+      uploadTexture(this.threshold, await loadMedia(this.thresholdSrc));
+    } else {
+      this.thresholdMap = fallbackThresholdMap;
+      this.threshold = fallbackThresholdTexture;
+    }
   }
   async resizeCanvas() {
     const customWidth = this.getAttribute("width") ? parseInt(this.getAttribute("width")) : null;
@@ -300,14 +299,14 @@ class DitherDither extends HTMLElement {
     gl.vertexAttribPointer(locations.texcoord, 2, gl.FLOAT, false, 0, 0);
 
     gl.uniform2f(locations.resolution, width, height);
-    gl.uniform2f(locations.thresholdSize, this.threshold.width, this.threshold.height);
+    gl.uniform2f(locations.thresholdSize, this.thresholdMap.width, this.thresholdMap.height);
     gl.uniform4fv(locations.darkColor, this.darkColor);
     gl.uniform4fv(locations.lightColor, this.lightColor);
 
     gl.activeTexture(gl.TEXTURE0);
-    uploadTexture(gl, mediaTexture, this.media);
+    uploadTexture(mediaTexture, this.media);
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, thresholdTexture(this));
+    gl.bindTexture(gl.TEXTURE_2D, this.threshold);
 
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
